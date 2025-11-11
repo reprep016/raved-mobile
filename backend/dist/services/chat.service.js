@@ -50,7 +50,7 @@ exports.chatService = {
           ELSE c.participant1_id = u.id
         END
       )
-      LEFT JOIN messages m ON c.last_message_id = m.id
+      LEFT JOIN messages m ON c.last_message_id::uuid = m.id
       WHERE (c.participant1_id = $1 OR c.participant2_id = $1)
         AND c.deleted_at IS NULL
       ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC
@@ -61,7 +61,7 @@ exports.chatService = {
                 id: conv.other_participant_id,
                 username: conv.username,
                 name: `${conv.first_name} ${conv.last_name}`,
-                avatarUrl: conv.avatar_url
+                avatarUrl: (0, utils_1.getAvatarUrl)(conv.avatar_url, conv.other_participant_id)
             },
             lastMessage: conv.last_message ? {
                 content: conv.last_message,
@@ -93,12 +93,12 @@ exports.chatService = {
             id: conv.participant2_id,
             username: conv.p2_username,
             name: `${conv.p2_first} ${conv.p2_last}`,
-            avatarUrl: conv.p2_avatar
+            avatarUrl: (0, utils_1.getAvatarUrl)(conv.p2_avatar, conv.participant2_id)
         } : {
             id: conv.participant1_id,
             username: conv.p1_username,
             name: `${conv.p1_first} ${conv.p1_last}`,
-            avatarUrl: conv.p1_avatar
+            avatarUrl: (0, utils_1.getAvatarUrl)(conv.p1_avatar, conv.participant1_id)
         };
         return {
             id: conv.id,
@@ -192,7 +192,7 @@ exports.chatService = {
                 id: u.id,
                 username: u.username,
                 name: `${u.first_name} ${u.last_name}`,
-                avatarUrl: u.avatar_url
+                avatarUrl: (0, utils_1.getAvatarUrl)(u.avatar_url, u.id)
             };
         });
         const enrichedMessages = messages.reverse().map(message => ({

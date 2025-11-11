@@ -41,6 +41,22 @@ exports.paymentController = {
             res.status(500).json({ error: 'Failed to initialize payment' });
         }
     },
+    initializeCheckoutPayment: async (req, res) => {
+        try {
+            const checkoutData = req.body;
+            const userId = req.user.id;
+            const userEmail = req.user.email;
+            const paymentDetails = await payment_service_1.paymentService.initializeCheckoutPayment(userId, userEmail, checkoutData);
+            res.json({
+                success: true,
+                ...paymentDetails
+            });
+        }
+        catch (error) {
+            console.error('Initialize Checkout Payment Error:', error);
+            res.status(500).json({ error: error.message });
+        }
+    },
     verifyPayment: async (req, res) => {
         try {
             const { reference } = req.params;

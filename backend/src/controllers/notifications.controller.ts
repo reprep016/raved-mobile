@@ -1,8 +1,126 @@
 import { Request, Response } from 'express';
 import { PushNotificationService } from '../services/push-notification.service';
 import { Notification } from '../models/mongoose/notification.model';
+import { pgPool } from '../config/database';
+import { getAvatarUrl } from '../utils';
 
 export const notificationsController = {
+  // Get user's notifications
+  getNotifications: async (req: Request, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const offset = (page - 1) * limit;
+
+      // Get notifications from PostgreSQL
+      const notificationsResult = await pgPool.query(`
+        SELECT 
+          n.id,
+          n.type,
+          n.title,
+          n.message,
+          n.data,
+          n.actor_id,
+          n.is_read,
+          n.read_at,
+          n.created_at,
+          u.first_name,
+          u.last_name,
+          u.avatar_url,
+          u.username
+        FROM notifications n
+        LEFT JOIN users u ON n.actor_id = u.id
+        WHERE n.user_id = $1 AND n.deleted_at IS NULL
+        ORDER BY n.created_at DESC
+        LIMIT $2 OFFSET $3
+      `, [userId, limit, offset]);
+
+      // Get total count
+      const countResult = await pgPool.query(`
+        SELECT COUNT(*) as total
+        FROM notifications
+        WHERE user_id = $1 AND deleted_at IS NULL
+      `, [userId]);
+
+      // Get unread count
+      const unreadResult = await pgPool.query(`
+        SELECT COUNT(*) as unread
+        FROM notifications
+        WHERE user_id = $1 AND is_read = false AND deleted_at IS NULL
+      `, [userId]);
+
+      const notifications = notificationsResult.rows.map(row => ({
+        id: row.id,
+        type: row.type,
+        title: row.title,
+        message: row.message,
+        user: row.actor_id ? {
+          id: row.actor_id,
+          name: `${row.first_name} ${row.last_name}`,
+          avatar: getAvatarUrl(row.avatar_url, row.actor_id),
+        } : undefined,
+        postId: row.data?.postId,
+        itemId: row.data?.itemId,
+        eventId: row.data?.eventId,
+        isRead: row.is_read,
+        readAt: row.read_at,
+        createdAt: row.created_at,
+        data: row.data,
+      }));
+
+      res.json({
+        notifications,
+        unreadCount: parseInt(unreadResult.rows[0].unread),
+        pagination: {
+          total: parseInt(countResult.rows[0].total),
+          page,
+          limit,
+          hasMore: offset + limit < parseInt(countResult.rows[0].total),
+        },
+      });
+    } catch (error) {
+      console.error('Get Notifications Error:', error);
+      res.status(500).json({ error: 'Failed to get notifications' });
+    }
+  },
+
+  // Mark notification as read
+  markAsRead: async (req: Request, res: Response) => {
+    try {
+      const userId = req.user.id;
+      const { notificationId } = req.params;
+
+      await pgPool.query(`
+        UPDATE notifications
+        SET is_read = true, read_at = CURRENT_TIMESTAMP
+        WHERE id = $1 AND user_id = $2
+      `, [notificationId, userId]);
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Mark Notification as Read Error:', error);
+      res.status(500).json({ error: 'Failed to mark notification as read' });
+    }
+  },
+
+  // Mark all notifications as read
+  markAllAsRead: async (req: Request, res: Response) => {
+    try {
+      const userId = req.user.id;
+
+      await pgPool.query(`
+        UPDATE notifications
+        SET is_read = true, read_at = CURRENT_TIMESTAMP
+        WHERE user_id = $1 AND is_read = false AND deleted_at IS NULL
+      `, [userId]);
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Mark All Notifications as Read Error:', error);
+      res.status(500).json({ error: 'Failed to mark all notifications as read' });
+    }
+  },
   // Send test notification to user
   sendTestNotification: async (req: Request, res: Response) => {
     try {

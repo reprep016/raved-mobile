@@ -12,6 +12,7 @@ router.post('/', auth_middleware_1.authenticate, rate_limit_middleware_1.postRat
     (0, express_validator_1.body)('caption').optional().trim().isLength({ max: 2000 }),
 ], posts_controller_1.createPost);
 router.get('/feed', auth_middleware_1.authenticate, posts_controller_1.getFeed);
+router.get('/faculty/:facultyId', auth_middleware_1.authenticate, posts_controller_1.getFacultyPosts);
 router.get('/:postId', auth_middleware_1.authenticate, posts_controller_1.getPost);
 router.post('/:postId/like', auth_middleware_1.authenticate, rate_limit_middleware_1.interactionRateLimit, posts_controller_1.likePost);
 router.post('/:postId/comments', auth_middleware_1.authenticate, rate_limit_middleware_1.commentRateLimit, moderation_middleware_1.moderateComment, [

@@ -15,6 +15,8 @@ import { theme } from '../theme';
 import { ProductCard } from '../components/store/ProductCard';
 import { mockStoreItems } from '../utils/mockData';
 import { StoreItem } from '../types';
+import { storeApi } from '../services/storeApi';
+import { useEffect, useState } from 'react';
 
 type FilterType = 'all' | 'category' | 'price' | 'seller' | 'trending';
 
@@ -22,10 +24,45 @@ export default function SimilarItemsScreen() {
   const router = useRouter();
   const { productId } = useLocalSearchParams<{ productId?: string }>();
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [currentProduct, setCurrentProduct] = useState<StoreItem | null>(null);
+  const [allItems, setAllItems] = useState<StoreItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const currentProduct = productId
-    ? mockStoreItems.find(item => item.id === productId)
-    : mockStoreItems[0];
+  useEffect(() => {
+    loadItems();
+  }, []);
+
+  useEffect(() => {
+    if (productId && allItems.length > 0) {
+      const product = allItems.find(item => item.id === productId);
+      setCurrentProduct(product || null);
+    }
+  }, [productId, allItems]);
+
+  const loadItems = async () => {
+    try {
+      setLoading(true);
+      const response = await storeApi.getStoreItems({ page: 1, limit: 50 });
+      setAllItems(response.items || []);
+      
+      if (productId) {
+        const product = response.items.find((item: StoreItem) => item.id === productId);
+        setCurrentProduct(product || null);
+      } else if (response.items.length > 0) {
+        setCurrentProduct(response.items[0]);
+      }
+    } catch (error) {
+      console.error('Failed to load items:', error);
+      // Fallback to mock data
+      setAllItems(mockStoreItems);
+      setCurrentProduct(productId 
+        ? mockStoreItems.find(item => item.id === productId) || mockStoreItems[0]
+        : mockStoreItems[0]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filters: { id: FilterType; label: string }[] = [
     { id: 'all', label: 'All Similar' },
@@ -37,36 +74,36 @@ export default function SimilarItemsScreen() {
 
   // Filter items based on active filter
   const getFilteredItems = (): StoreItem[] => {
-    if (!currentProduct) return mockStoreItems.slice(0, 8);
+    if (!currentProduct || allItems.length === 0) return [];
     
     switch (activeFilter) {
       case 'category':
-        return mockStoreItems.filter(item => 
+        return allItems.filter(item => 
           item.id !== currentProduct.id && item.category === currentProduct.category
         ).slice(0, 8);
       case 'price':
         const priceRange = currentProduct.price * 0.3;
-        return mockStoreItems.filter(item => 
+        return allItems.filter(item => 
           item.id !== currentProduct.id &&
           Math.abs(item.price - currentProduct.price) <= priceRange
         ).slice(0, 8);
       case 'seller':
-        return mockStoreItems.filter(item => 
+        return allItems.filter(item => 
           item.id !== currentProduct.id && item.seller.id === currentProduct.seller.id
         ).slice(0, 8);
       case 'trending':
-        return mockStoreItems
+        return allItems
           .filter(item => item.id !== currentProduct.id)
-          .sort((a, b) => (b.sales || 0) - (a.sales || 0))
+          .sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0))
           .slice(0, 8);
       default:
-        return mockStoreItems.filter(item => item.id !== currentProduct.id).slice(0, 8);
+        return allItems.filter(item => item.id !== currentProduct.id).slice(0, 8);
     }
   };
 
   const similarItems = getFilteredItems();
-  const recentlyViewed = mockStoreItems.slice(0, 4);
-  const recommended = mockStoreItems.slice(4, 8);
+  const recentlyViewed = allItems.slice(0, 4);
+  const recommended = allItems.slice(4, 8);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

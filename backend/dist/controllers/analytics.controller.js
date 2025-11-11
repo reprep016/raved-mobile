@@ -46,7 +46,7 @@ class AnalyticsController {
                     startDate.setDate(endDate.getDate() - 7);
             }
             const [realtimeMetrics, userActivity, topPages, deviceBreakdown] = await Promise.all([
-                analytics_service_1.analyticsService.getRealtimeMetrics(1440),
+                analytics_service_1.analyticsService.getRealtimeMetrics(1440), // Last 24 hours
                 this.getUserActivityStats(startDate, endDate),
                 this.getTopPages(startDate, endDate),
                 this.getDeviceBreakdown(startDate, endDate)

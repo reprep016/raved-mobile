@@ -6,7 +6,7 @@ const CommentSchema = new mongoose_1.Schema({
     postId: { type: String, required: true, index: true },
     userId: { type: String, required: true },
     text: { type: String, required: true, maxlength: 500 },
-    parentCommentId: { type: String, default: null },
+    parentCommentId: { type: String, default: null }, // For nested replies
     likesCount: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },

@@ -253,7 +253,7 @@ class SyncConflictService {
             entityId: conflict.entityId,
             version: Math.max(conflict.localVersion, conflict.serverVersion) + 1,
             userId: conflict.userId,
-            operation: 'update',
+            operation: 'update', // Conflict resolution is always an update
             data: resolvedData,
             checksum,
             createdAt: new Date(),

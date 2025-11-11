@@ -19,6 +19,11 @@ import backupRoutes from './backup.routes';
 import rateLimitRoutes from './rate-limit.routes';
 import offlineSyncRoutes from './offline-sync.routes';
 import moderationRoutes from './moderation.routes';
+import facultiesRoutes from './faculties.routes';
+import rankingsRoutes from './rankings.routes';
+import subscriptionsRoutes from './subscriptions.routes';
+import usersRoutes from './users.routes';
+import supportRoutes from './support.routes';
 
 const router = Router();
 
@@ -34,6 +39,11 @@ router.use('/device-tokens', deviceTokenRoutes);
 router.use('/chats', chatRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/analytics', analyticsRoutes);
+router.use('/faculties', facultiesRoutes);
+router.use('/rankings', rankingsRoutes);
+router.use('/subscriptions', subscriptionsRoutes);
+router.use('/users', usersRoutes);
+router.use('/support', supportRoutes);
 router.use('/', cartRoutes); // Use cart routes (note: some routes are /cart, some /items/:itemId/save)
 router.use('/', paymentRoutes); // Use payment routes (note: some routes are /webhooks, some /subscriptions, some /payments)
 router.use('/', adminRoutes); // Use admin routes (note: some routes are /admin, some /reports)

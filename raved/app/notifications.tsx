@@ -15,11 +15,14 @@ import { Avatar } from '../components/ui/Avatar';
 import { EmptyState } from '../components/ui/EmptyState';
 import * as Notifications from 'expo-notifications';
 import { NotificationService } from '../services/notificationService';
+import { notificationsApi, Notification as ApiNotification } from '../services/notificationsApi';
+import socketService from '../services/socket';
 
-interface Notification {
+interface LocalNotification {
   id: string;
-  type: 'like' | 'comment' | 'follow' | 'mention' | 'sale';
+  type: 'like' | 'comment' | 'follow' | 'mention' | 'sale' | 'message' | 'event';
   user?: {
+    id: string;
     name: string;
     avatar: string;
   };
@@ -27,9 +30,11 @@ interface Notification {
   time: string;
   read: boolean;
   postId?: string;
+  itemId?: string;
+  eventId?: string;
 }
 
-const mockNotifications: Notification[] = [
+const mockNotifications: LocalNotification[] = [
   {
     id: 'n1',
     type: 'like',
@@ -75,7 +80,7 @@ const mockNotifications: Notification[] = [
   },
 ];
 
-const getNotificationIcon = (type: Notification['type']) => {
+const getNotificationIcon = (type: LocalNotification['type']) => {
   switch (type) {
     case 'like':
       return 'heart';
@@ -92,7 +97,7 @@ const getNotificationIcon = (type: Notification['type']) => {
   }
 };
 
-const getNotificationColor = (type: Notification['type']) => {
+const getNotificationColor = (type: LocalNotification['type']) => {
   switch (type) {
     case 'like':
       return ['#EC4899', '#F43F5E'];
@@ -111,14 +116,75 @@ const getNotificationColor = (type: Notification['type']) => {
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const [notifications, setNotifications] = useState<LocalNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [presentedNotifications, setPresentedNotifications] = useState<Notifications.Notification[]>([]);
   const [scheduledNotifications, setScheduledNotifications] = useState<Notifications.NotificationRequest[]>([]);
 
   useEffect(() => {
     loadNotifications();
+    loadExpoNotifications();
+    
+    // Connect to socket and listen for real-time notifications
+    socketService.connect().then(() => {
+      socketService.onNotification((data: any) => {
+        // Add new notification to the list
+        const newNotification: LocalNotification = {
+          id: data.id || `notif_${Date.now()}`,
+          type: data.type,
+          user: data.user,
+          text: data.message || data.text,
+          time: 'now',
+          read: false,
+          postId: data.postId,
+          itemId: data.itemId,
+          eventId: data.eventId,
+        };
+        
+        setNotifications(prev => [newNotification, ...prev]);
+        setUnreadCount(prev => prev + 1);
+      });
+    }).catch((error) => {
+      console.error('Failed to connect to socket for notifications:', error);
+    });
+
+    // Cleanup
+    return () => {
+      // Socket cleanup is handled by the service
+    };
   }, []);
 
   const loadNotifications = async () => {
+    try {
+      setLoading(true);
+      const response = await notificationsApi.getNotifications(1, 50);
+      
+      const formattedNotifications: LocalNotification[] = response.notifications.map(notif => ({
+        id: notif.id,
+        type: notif.type,
+        user: notif.user,
+        text: notif.message,
+        time: formatTimeAgo(notif.createdAt),
+        read: notif.isRead,
+        postId: notif.postId,
+        itemId: notif.itemId,
+        eventId: notif.eventId,
+      }));
+      
+      setNotifications(formattedNotifications);
+      setUnreadCount(response.unreadCount);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+      // Fallback to mock notifications
+      setNotifications(mockNotifications);
+      setUnreadCount(mockNotifications.filter(n => !n.read).length);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadExpoNotifications = async () => {
     try {
       const [presented, scheduled] = await Promise.all([
         NotificationService.getPresentedNotifications(),
@@ -127,11 +193,46 @@ export default function NotificationsScreen() {
       setPresentedNotifications(presented);
       setScheduledNotifications(scheduled);
     } catch (error) {
-      console.error('Error loading notifications:', error);
+      console.error('Error loading expo notifications:', error);
     }
   };
 
-  const unreadCount = mockNotifications.filter(n => !n.read).length;
+  const formatTimeAgo = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  const handleMarkAsRead = async (notificationId: string) => {
+    try {
+      await notificationsApi.markAsRead(notificationId);
+      setNotifications(prev =>
+        prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationsApi.markAllAsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -179,19 +280,10 @@ export default function NotificationsScreen() {
 
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={async () => {
-            try {
-              await NotificationService.dismissAllNotifications();
-              setPresentedNotifications([]);
-              alert('All notifications dismissed!');
-            } catch (error) {
-              console.error('Error dismissing notifications:', error);
-              alert('Failed to dismiss notifications');
-            }
-          }}
+          onPress={handleMarkAllAsRead}
         >
-          <Ionicons name="close-circle" size={20} color={theme.colors.primary} />
-          <Text style={styles.actionText}>Clear All</Text>
+          <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
+          <Text style={styles.actionText}>Mark All Read</Text>
         </TouchableOpacity>
       </View>
 
@@ -236,11 +328,15 @@ export default function NotificationsScreen() {
         </View>
       )}
 
-      {/* Mock Notifications List */}
+      {/* Notifications List */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {mockNotifications.length > 0 ? (
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading notifications...</Text>
+          </View>
+        ) : notifications.length > 0 ? (
           <FlatList
-            data={mockNotifications}
+            data={notifications}
             renderItem={({ item }) => {
               const colors = getNotificationColor(item.type);
               const icon = getNotificationIcon(item.type);
@@ -252,8 +348,13 @@ export default function NotificationsScreen() {
                     !item.read && styles.notificationCardUnread,
                   ]}
                   onPress={() => {
+                    handleMarkAsRead(item.id);
                     if (item.postId) {
                       router.push(`/post/${item.postId}` as any);
+                    } else if (item.itemId) {
+                      router.push(`/product/${item.itemId}` as any);
+                    } else if (item.eventId) {
+                      router.push(`/event/${item.eventId}` as any);
                     }
                   }}
                 >
@@ -451,6 +552,14 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize[12],
     color: '#EF4444',
     fontWeight: theme.typography.fontWeight.medium,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing[12],
+  },
+  loadingText: {
+    fontSize: theme.typography.fontSize[14],
+    color: '#6B7280',
   },
 });
 

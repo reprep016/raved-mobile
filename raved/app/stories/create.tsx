@@ -200,39 +200,89 @@ export default function CreateStoryScreen() {
 
           {/* Templates */}
           <Text style={styles.sectionTitle}>Quick Templates</Text>
-          <View style={styles.templates}>
-            <TouchableOpacity 
-              style={[styles.template, { backgroundColor: '#EC4899' }]}
-              onPress={() => useTemplate('ootd')}
-            >
-              <Ionicons name="shirt" size={24} color="white" />
-              <Text style={styles.templateText}>OOTD</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.template, { backgroundColor: '#3B82F6' }]}
-              onPress={() => useTemplate('mood')}
-            >
-              <Ionicons name="heart" size={24} color="white" />
-              <Text style={styles.templateText}>Mood</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.template, { backgroundColor: '#10B981' }]}
-              onPress={() => useTemplate('study')}
-            >
-              <Ionicons name="book" size={24} color="white" />
-              <Text style={styles.templateText}>Study Vibes</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.template, { backgroundColor: '#F59E0B' }]}
-              onPress={() => useTemplate('event')}
-            >
-              <Ionicons name="calendar" size={24} color="white" />
-              <Text style={styles.templateText}>Event</Text>
-            </TouchableOpacity>
-          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.templatesScroll}>
+            <View style={styles.templates}>
+              <TouchableOpacity 
+                style={[styles.template, { backgroundColor: '#EC4899' }]}
+                onPress={() => useTemplate('ootd')}
+              >
+                <Ionicons name="shirt" size={24} color="white" />
+                <Text style={styles.templateText}>OOTD</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.template, { backgroundColor: '#3B82F6' }]}
+                onPress={() => useTemplate('mood')}
+              >
+                <Ionicons name="heart" size={24} color="white" />
+                <Text style={styles.templateText}>Mood</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.template, { backgroundColor: '#10B981' }]}
+                onPress={() => useTemplate('study')}
+              >
+                <Ionicons name="book" size={24} color="white" />
+                <Text style={styles.templateText}>Study</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.template, { backgroundColor: '#F59E0B' }]}
+                onPress={() => useTemplate('event')}
+              >
+                <Ionicons name="calendar" size={24} color="white" />
+                <Text style={styles.templateText}>Event</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.template, { backgroundColor: '#EF4444' }]}
+                onPress={() => useTemplate('workout')}
+              >
+                <Ionicons name="fitness" size={24} color="white" />
+                <Text style={styles.templateText}>Workout</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.template, { backgroundColor: '#EAB308' }]}
+                onPress={() => useTemplate('food')}
+              >
+                <Ionicons name="restaurant" size={24} color="white" />
+                <Text style={styles.templateText}>Food</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.template, { backgroundColor: '#06B6D4' }]}
+                onPress={() => useTemplate('travel')}
+              >
+                <Ionicons name="airplane" size={24} color="white" />
+                <Text style={styles.templateText}>Travel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.template, { backgroundColor: '#A855F7' }]}
+                onPress={() => useTemplate('party')}
+              >
+                <Ionicons name="musical-notes" size={24} color="white" />
+                <Text style={styles.templateText}>Party</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.template, { backgroundColor: '#14B8A6' }]}
+                onPress={() => useTemplate('chill')}
+              >
+                <Ionicons name="leaf" size={24} color="white" />
+                <Text style={styles.templateText}>Chill</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.template, { backgroundColor: '#6366F1' }]}
+                onPress={() => useTemplate('motivation')}
+              >
+                <Ionicons name="flame" size={24} color="white" />
+                <Text style={styles.templateText}>Motivation</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
 
           {/* Story Settings */}
           <Text style={styles.sectionTitle}>Story Settings</Text>
@@ -378,12 +428,16 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.fontSize[12],
     fontWeight: theme.typography.fontWeight.semibold,
   },
+  templatesScroll: {
+    marginVertical: theme.spacing[2],
+  },
   templates: {
     flexDirection: 'row',
     gap: theme.spacing[3],
+    paddingHorizontal: theme.spacing[2],
   },
   template: {
-    flex: 1,
+    minWidth: 80,
     alignItems: 'center',
     padding: theme.spacing[3],
     borderRadius: theme.borderRadius.xl,

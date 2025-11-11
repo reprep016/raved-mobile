@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -12,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
 import { Button } from '../components/ui/Button';
 import { useStore } from '../hooks/useStore';
+import { subscriptionsApi, SubscriptionPlan, SubscriptionStatus } from '../services/subscriptionsApi';
+import api from '../services/api';
 
 const premiumFeatures = [
   {
@@ -50,7 +54,56 @@ export default function SubscriptionScreen() {
   const router = useRouter();
   const { isPremium } = useStore();
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
-  const trialDaysLeft = 6;
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [plansData, statusData] = await Promise.all([
+        subscriptionsApi.getPlans(),
+        subscriptionsApi.getSubscriptionStatus(),
+      ]);
+      setPlans(plansData);
+      setSubscriptionStatus(statusData);
+    } catch (error) {
+      console.error('Failed to load subscription data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const handleSubscribe = async () => {
+    if (!selectedPayment || !plans[0]) return;
+    
+    try {
+      setSubscribing(true);
+      // Initialize subscription payment
+      const response = await api.post('/subscriptions/initialize', {
+        plan: plans[0].id,
+        paymentMethod: selectedPayment,
+      });
+      // TODO: Handle payment redirect or confirmation based on response
+      console.log('Payment initialized:', response.data);
+    } catch (error) {
+      console.error('Failed to subscribe:', error);
+    } finally {
+      setSubscribing(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -65,22 +118,49 @@ export default function SubscriptionScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Current Status */}
-        <View style={styles.statusCard}>
-          <View style={styles.statusHeader}>
-            <View style={styles.crownIcon}>
-              <Ionicons name="diamond" size={20} color="white" />
-            </View>
-            <View style={styles.statusText}>
-              <Text style={styles.statusTitle}>Free Trial</Text>
-              <Text style={styles.statusSubtitle}>{trialDaysLeft} days remaining</Text>
-            </View>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
           </View>
-          <Text style={styles.statusDescription}>
-            Upgrade to Premium to unlock all features and join the rankings!
-          </Text>
-        </View>
+        ) : (
+          <>
+            {/* Current Status */}
+            {subscriptionStatus && (
+              <View style={styles.statusCard}>
+                <View style={styles.statusHeader}>
+                  <View style={styles.crownIcon}>
+                    <Ionicons name="diamond" size={20} color="white" />
+                  </View>
+                  <View style={styles.statusText}>
+                    <Text style={styles.statusTitle}>
+                      {subscriptionStatus.isPremium ? 'Premium' : subscriptionStatus.isTrial ? 'Free Trial' : 'Free Account'}
+                    </Text>
+                    {subscriptionStatus.trialDaysLeft !== null && (
+                      <Text style={styles.statusSubtitle}>
+                        {subscriptionStatus.trialDaysLeft} days remaining
+                      </Text>
+                    )}
+                    {subscriptionStatus.subscription && (
+                      <Text style={styles.statusSubtitle}>
+                        Expires {new Date(subscriptionStatus.subscription.expiresAt).toLocaleDateString()}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                <Text style={styles.statusDescription}>
+                  {subscriptionStatus.isPremium 
+                    ? 'You have access to all premium features!'
+                    : 'Upgrade to Premium to unlock all features and join the rankings!'}
+                </Text>
+              </View>
+            )}
 
         {/* Premium Features */}
         <View style={styles.featuresSection}>
@@ -102,15 +182,19 @@ export default function SubscriptionScreen() {
           ))}
         </View>
 
-        {/* Pricing */}
-        <View style={styles.pricingSection}>
-          <Text style={styles.sectionTitle}>💰 Pricing</Text>
-          <View style={styles.pricingCard}>
-            <Text style={styles.pricingAmount}>₵5.00</Text>
-            <Text style={styles.pricingPeriod}>per week</Text>
-            <Text style={styles.pricingDescription}>Unlock all premium features</Text>
-          </View>
-        </View>
+            {/* Pricing */}
+            {plans.length > 0 && (
+              <View style={styles.pricingSection}>
+                <Text style={styles.sectionTitle}>💰 Pricing</Text>
+                {plans.map((plan) => (
+                  <View key={plan.id} style={styles.pricingCard}>
+                    <Text style={styles.pricingAmount}>₵{plan.price.toFixed(2)}</Text>
+                    <Text style={styles.pricingPeriod}>{plan.duration}</Text>
+                    <Text style={styles.pricingDescription}>Unlock all premium features</Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
         {/* Payment Methods */}
         <View style={styles.paymentSection}>
@@ -148,15 +232,20 @@ export default function SubscriptionScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Subscribe Button */}
-        <Button
-          title="Subscribe to Premium"
-          onPress={() => {}}
-          variant="primary"
-          size="large"
-          leftIcon={<Ionicons name="diamond" size={16} color="white" />}
-          style={styles.subscribeButton}
-        />
+            {/* Subscribe Button */}
+            {!subscriptionStatus?.isPremium && (
+              <Button
+                title={subscribing ? "Processing..." : "Subscribe to Premium"}
+                onPress={handleSubscribe}
+                variant="primary"
+                size="large"
+                leftIcon={<Ionicons name="diamond" size={16} color="white" />}
+                style={styles.subscribeButton}
+                disabled={subscribing || !selectedPayment}
+              />
+            )}
+          </>
+        )}
 
         {/* Free Features Info */}
         <View style={styles.limitationsCard}>
@@ -364,6 +453,10 @@ const styles = StyleSheet.create({
   limitationItem: {
     fontSize: theme.typography.fontSize[12],
     color: '#6B7280',
+  },
+  loadingContainer: {
+    paddingVertical: theme.spacing[12],
+    alignItems: 'center',
   },
 });
 

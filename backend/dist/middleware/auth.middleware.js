@@ -22,7 +22,9 @@ const authenticate = async (req, res, next) => {
             });
         }
         const decoded = (0, auth_utils_1.verifyToken)(token);
-        if (!decoded || !decoded.userId) {
+        // Support tokens that carry `userId` or `id` in payload
+        const userId = decoded?.userId || decoded?.id;
+        if (!decoded || !userId) {
             return res.status(401).json({
                 success: false,
                 error: 'Invalid or expired token',
@@ -39,7 +41,7 @@ const authenticate = async (req, res, next) => {
       FROM users u
       LEFT JOIN subscriptions s ON u.id = s.user_id AND s.status = 'active'
       WHERE u.id = $1 AND u.deleted_at IS NULL
-    `, [decoded.userId]);
+    `, [userId]);
         if (result.rows.length === 0) {
             return res.status(401).json({
                 success: false,
@@ -111,7 +113,8 @@ const optionalAuth = async (req, res, next) => {
             return next();
         }
         const decoded = (0, auth_utils_1.verifyToken)(token);
-        if (!decoded || !decoded.userId) {
+        const userId = decoded?.userId || decoded?.id;
+        if (!decoded || !userId) {
             req.user = null;
             return next();
         }
@@ -125,7 +128,7 @@ const optionalAuth = async (req, res, next) => {
       FROM users u
       LEFT JOIN subscriptions s ON u.id = s.user_id AND s.status = 'active'
       WHERE u.id = $1 AND u.deleted_at IS NULL AND u.status != 'suspended'
-    `, [decoded.userId]);
+  `, [userId]);
         if (result.rows.length > 0) {
             const user = result.rows[0];
             req.user = {

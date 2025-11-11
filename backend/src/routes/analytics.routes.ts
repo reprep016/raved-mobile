@@ -1,33 +1,34 @@
 import { Router } from 'express';
 import { analyticsController } from '../controllers/analytics.controller';
 import { requireAdmin } from '../middleware/admin.middleware';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate, requirePremium } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// Apply admin middleware to all analytics routes
-router.use(authenticate);
-router.use(requireAdmin);
+// User analytics routes (require authentication, premium for advanced)
+router.get('/user', authenticate, analyticsController.getUserAnalytics.bind(analyticsController));
+router.get('/store', authenticate, requirePremium, analyticsController.getStoreAnalytics.bind(analyticsController));
+router.post('/track', authenticate, analyticsController.trackEvent.bind(analyticsController));
 
-// Dashboard endpoints
-router.get('/dashboard', analyticsController.getDashboardOverview.bind(analyticsController));
-router.get('/realtime', analyticsController.getRealtimeMetrics.bind(analyticsController));
+// Admin analytics routes (all require admin authentication)
+router.get('/admin/dashboard', authenticate, requireAdmin, analyticsController.getDashboardOverview.bind(analyticsController));
+router.get('/admin/realtime', authenticate, requireAdmin, analyticsController.getRealtimeMetrics.bind(analyticsController));
 
 // User activity endpoints
-router.get('/users/:userId/activity', analyticsController.getUserActivityHistory.bind(analyticsController));
+router.get('/admin/users/:userId/activity', authenticate, requireAdmin, analyticsController.getUserActivityHistory.bind(analyticsController));
 
 // Report generation endpoints
-router.post('/reports/generate', analyticsController.generateReport.bind(analyticsController));
-router.get('/reports', analyticsController.getReports.bind(analyticsController));
+router.post('/admin/reports/generate', authenticate, requireAdmin, analyticsController.generateReport.bind(analyticsController));
+router.get('/admin/reports', authenticate, requireAdmin, analyticsController.getReports.bind(analyticsController));
 
 // A/B Testing endpoints
-router.post('/ab-tests', analyticsController.createABTest.bind(analyticsController));
-router.get('/ab-tests/:testName/variant', analyticsController.getABTestVariant.bind(analyticsController));
-router.post('/ab-tests/:testName/results', analyticsController.trackABTestResult.bind(analyticsController));
-router.get('/ab-tests/:testName/results', analyticsController.getABTestResults.bind(analyticsController));
+router.post('/admin/ab-tests', authenticate, requireAdmin, analyticsController.createABTest.bind(analyticsController));
+router.get('/admin/ab-tests/:testName/variant', authenticate, requireAdmin, analyticsController.getABTestVariant.bind(analyticsController));
+router.post('/admin/ab-tests/:testName/results', authenticate, requireAdmin, analyticsController.trackABTestResult.bind(analyticsController));
+router.get('/admin/ab-tests/:testName/results', authenticate, requireAdmin, analyticsController.getABTestResults.bind(analyticsController));
 
 // Advanced analytics endpoints
-router.post('/query', analyticsController.runCustomQuery.bind(analyticsController));
-router.get('/export', analyticsController.exportAnalyticsData.bind(analyticsController));
+router.post('/admin/query', authenticate, requireAdmin, analyticsController.runCustomQuery.bind(analyticsController));
+router.get('/admin/export', authenticate, requireAdmin, analyticsController.exportAnalyticsData.bind(analyticsController));
 
 export default router;

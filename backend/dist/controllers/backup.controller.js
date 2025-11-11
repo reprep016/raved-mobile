@@ -24,7 +24,7 @@ exports.backupController = {
                     type: 'postgresql',
                     databases: ['postgresql'],
                     timestamp: new Date(),
-                    size: 0,
+                    size: 0, // Would calculate actual size
                     checksum: '',
                     status: 'success',
                     path,

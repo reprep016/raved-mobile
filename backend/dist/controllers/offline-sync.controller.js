@@ -316,7 +316,7 @@ const syncOfflineData = async (req, res) => {
         await offline_analytics_service_1.default.trackSyncPerformance(userId, req.headers['x-device-id'] || 'unknown', {
             syncType: 'incremental',
             itemsSynced: result.synced,
-            duration: 0,
+            duration: 0, // Would need to track actual duration
             success: result.errors === 0,
             dataTransferred: 0, // Would need to calculate
         });

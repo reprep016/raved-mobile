@@ -296,7 +296,7 @@ class SelectiveCacheService {
             strategies: [
                 {
                     key: 'profile',
-                    ttl: 1800,
+                    ttl: 1800, // 30 minutes
                     priority: 'high',
                     invalidationRules: {
                         onEntityChange: ['user'],
@@ -304,7 +304,7 @@ class SelectiveCacheService {
                 },
                 {
                     key: 'stats',
-                    ttl: 300,
+                    ttl: 300, // 5 minutes
                     priority: 'medium',
                 },
             ],
@@ -317,7 +317,7 @@ class SelectiveCacheService {
             strategies: [
                 {
                     key: 'content',
-                    ttl: 600,
+                    ttl: 600, // 10 minutes
                     priority: 'high',
                     invalidationRules: {
                         onEntityChange: ['post', 'comment', 'like'],
@@ -325,7 +325,7 @@ class SelectiveCacheService {
                 },
                 {
                     key: 'feed',
-                    ttl: 300,
+                    ttl: 300, // 5 minutes
                     priority: 'medium',
                 },
             ],
@@ -338,7 +338,7 @@ class SelectiveCacheService {
             strategies: [
                 {
                     key: 'details',
-                    ttl: 3600,
+                    ttl: 3600, // 1 hour
                     priority: 'high',
                     invalidationRules: {
                         onEntityChange: ['event', 'event_attendee'],
@@ -346,7 +346,7 @@ class SelectiveCacheService {
                 },
                 {
                     key: 'list',
-                    ttl: 600,
+                    ttl: 600, // 10 minutes
                     priority: 'medium',
                 },
             ],
@@ -359,7 +359,7 @@ class SelectiveCacheService {
             strategies: [
                 {
                     key: 'details',
-                    ttl: 1800,
+                    ttl: 1800, // 30 minutes
                     priority: 'high',
                     invalidationRules: {
                         onEntityChange: ['store_item', 'order'],
@@ -367,7 +367,7 @@ class SelectiveCacheService {
                 },
                 {
                     key: 'search',
-                    ttl: 300,
+                    ttl: 300, // 5 minutes
                     priority: 'medium',
                 },
             ],

@@ -4,7 +4,7 @@ exports.Like = void 0;
 const mongoose_1 = require("mongoose");
 const LikeSchema = new mongoose_1.Schema({
     userId: { type: String, required: true, index: true },
-    targetId: { type: String, required: true, index: true },
+    targetId: { type: String, required: true, index: true }, // Post or Comment ID
     targetType: { type: String, enum: ['post', 'comment'], required: true },
     createdAt: { type: Date, default: Date.now }
 });

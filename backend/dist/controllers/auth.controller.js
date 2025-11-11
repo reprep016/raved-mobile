@@ -15,18 +15,30 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateUserLanguagePreferences = exports.verifySMSTwoFactorCode = exports.sendSMSTwoFactorCode = exports.disableSMSTwoFactor = exports.enableSMSTwoFactor = exports.resetPasswordWithSMS = exports.requestSMSPasswordReset = exports.verifySMSCode = exports.sendSMSVerification = exports.resetPassword = exports.requestPasswordReset = exports.verifyEmail = exports.sendEmailVerification = exports.login = void 0;
+exports.updateUserLanguagePreferences = exports.refresh = exports.verifySMSTwoFactorCode = exports.sendSMSTwoFactorCode = exports.disableSMSTwoFactor = exports.enableSMSTwoFactor = exports.resetPasswordWithSMS = exports.requestSMSPasswordReset = exports.verifySMSCode = exports.sendSMSVerification = exports.resetPassword = exports.requestPasswordReset = exports.verifyEmail = exports.sendEmailVerification = exports.login = void 0;
 const database_1 = require("../config/database");
 const auth_utils_1 = require("../utils/auth.utils");
 const utils_1 = require("../utils");
+const config_1 = require("../config");
+const jwt = __importStar(require("jsonwebtoken"));
 const email_service_1 = require("../services/email.service");
 const sms_service_1 = require("../services/sms.service");
 const crypto = __importStar(require("crypto"));
@@ -77,8 +89,12 @@ const login = async (req, res) => {
             });
         }
         // Generate tokens
-        const token = (0, auth_utils_1.generateToken)(user);
-        const refreshToken = (0, auth_utils_1.generateRefreshToken)(user);
+        const tokenPayload = {
+            userId: user.id,
+            username: user.username,
+        };
+        const token = (0, auth_utils_1.generateToken)(tokenPayload);
+        const refreshToken = (0, auth_utils_1.generateRefreshToken)({ userId: user.id });
         // Store refresh token in Redis
         await database_1.redis.setex(`refresh_token:${user.id}`, 7 * 24 * 60 * 60, refreshToken);
         // Update last login
@@ -98,8 +114,12 @@ const login = async (req, res) => {
         });
     }
     catch (error) {
-        console.error('Login Error:', error);
-        res.status(500).json({ error: 'Failed to login' });
+        console.error('❌ Login Error:', error);
+        if (error instanceof Error) {
+            console.error('Error message:', error.message);
+            console.error('Stack:', error.stack);
+        }
+        res.status(500).json({ error: 'Failed to login', details: error instanceof Error ? error.message : String(error) });
     }
 };
 exports.login = login;
@@ -493,8 +513,12 @@ const verifySMSTwoFactorCode = async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
         const user = userResult.rows[0];
-        const token = (0, auth_utils_1.generateToken)(user);
-        const refreshToken = (0, auth_utils_1.generateRefreshToken)(user);
+        const tokenPayload = {
+            userId: user.id,
+            username: user.username,
+        };
+        const token = (0, auth_utils_1.generateToken)(tokenPayload);
+        const refreshToken = (0, auth_utils_1.generateRefreshToken)({ userId: user.id });
         // Update last login
         await database_1.pgPool.query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1', [userId]);
         res.json({
@@ -517,6 +541,51 @@ const verifySMSTwoFactorCode = async (req, res) => {
     }
 };
 exports.verifySMSTwoFactorCode = verifySMSTwoFactorCode;
+// Refresh token handler
+const refresh = async (req, res) => {
+    try {
+        const { refreshToken } = req.body;
+        if (!refreshToken)
+            return res.status(400).json({ error: 'Refresh token is required' });
+        // Verify refresh token using refresh secret
+        const payload = (() => {
+            try {
+                return jwt.verify(refreshToken, config_1.CONFIG.JWT_REFRESH_SECRET);
+            }
+            catch (err) {
+                return null;
+            }
+        })();
+        if (!payload || !payload.userId)
+            return res.status(401).json({ error: 'Invalid refresh token' });
+        const userId = payload.userId;
+        // Check stored refresh token in Redis
+        const stored = await database_1.redis.get(`refresh_token:${userId}`);
+        if (!stored || stored !== refreshToken) {
+            return res.status(401).json({ error: 'Refresh token expired or invalid' });
+        }
+        // Get user details
+        const userResult = await database_1.pgPool.query('SELECT id, username, email, first_name, last_name FROM users WHERE id = $1', [userId]);
+        if (userResult.rows.length === 0)
+            return res.status(404).json({ error: 'User not found' });
+        const user = userResult.rows[0];
+        // Generate new tokens
+        const tokenPayload = {
+            userId: user.id,
+            username: user.username,
+        };
+        const token = (0, auth_utils_1.generateToken)(tokenPayload);
+        const newRefresh = (0, auth_utils_1.generateRefreshToken)({ userId: user.id });
+        // Store new refresh token
+        await database_1.redis.setex(`refresh_token:${user.id}`, 7 * 24 * 60 * 60, newRefresh);
+        res.json({ success: true, token, refreshToken: newRefresh });
+    }
+    catch (error) {
+        console.error('Refresh Error:', error);
+        res.status(500).json({ error: 'Failed to refresh token' });
+    }
+};
+exports.refresh = refresh;
 // Update user language preferences
 const updateUserLanguagePreferences = async (req, res) => {
     try {

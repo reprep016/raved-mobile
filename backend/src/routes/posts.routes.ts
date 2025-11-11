@@ -7,6 +7,9 @@ import {
   likePost,
   commentOnPost,
   getPostComments,
+  getFacultyPosts,
+  getPostSuggestions,
+  getTrendingPosts,
 } from '../controllers/posts.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { postRateLimit, commentRateLimit, interactionRateLimit } from '../middleware/rate-limit.middleware';
@@ -20,6 +23,12 @@ router.post('/', authenticate, postRateLimit, moderatePost, [
 ], createPost);
 
 router.get('/feed', authenticate, getFeed);
+
+router.get('/suggestions', authenticate, getPostSuggestions);
+
+router.get('/trending', authenticate, getTrendingPosts);
+
+router.get('/faculty/:facultyId', authenticate, getFacultyPosts);
 
 router.get('/:postId', authenticate, getPost);
 

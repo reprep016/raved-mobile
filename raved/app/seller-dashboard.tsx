@@ -17,7 +17,8 @@ import { Avatar } from '../components/ui/Avatar';
 import { useStore } from '../hooks/useStore';
 import { useAuth } from '../hooks/useAuth';
 import { StoreItem } from '../types';
-import { mockStoreItems } from '../utils/mockData';
+import { storeApi } from '../services/storeApi';
+import { EmptyState } from '../components/ui/EmptyState';
 
 export default function SellerDashboardScreen() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function SellerDashboardScreen() {
   const [myItems, setMyItems] = useState<StoreItem[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [totalSales, setTotalSales] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isPremium) {
@@ -46,21 +48,39 @@ export default function SellerDashboardScreen() {
       return;
     }
 
-    // Filter items by current user
-    const userItems = mockStoreItems.filter(
-      item => item.seller.id === user?.id
-    );
-    setMyItems(userItems);
-    setTotalItems(userItems.length);
-    
-    // Calculate total sales (mock - in real app would come from actual sales data)
-    const sales = userItems.reduce((sum, item) => {
-      // Mock sales count
-      const salesCount = Math.floor(Math.random() * 10);
-      return sum + (salesCount * item.price);
-    }, 0);
-    setTotalSales(sales);
+    loadMyItems();
   }, [isPremium, user?.id]);
+
+  const loadMyItems = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoading(true);
+      const response = await storeApi.getStoreItems({ page: 1, limit: 100 });
+      
+      // Filter items by current user
+      const userItems = response.items.filter(
+        (item: StoreItem) => item.seller.id === user.id
+      );
+      
+      setMyItems(userItems);
+      setTotalItems(userItems.length);
+      
+      // Calculate total sales from sales_count
+      const sales = userItems.reduce((sum: number, item: StoreItem) => {
+        const salesCount = (item as any).salesCount || 0;
+        return sum + (salesCount * item.price);
+      }, 0);
+      setTotalSales(sales);
+    } catch (error) {
+      console.error('Failed to load my items:', error);
+      setMyItems([]);
+      setTotalItems(0);
+      setTotalSales(0);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!isPremium) {
     return null;
@@ -84,12 +104,7 @@ export default function SellerDashboardScreen() {
   };
 
   const handleRefresh = () => {
-    // Refresh items
-    const userItems = mockStoreItems.filter(
-      item => item.seller.id === user?.id
-    );
-    setMyItems(userItems);
-    setTotalItems(userItems.length);
+    loadMyItems();
   };
 
   return (

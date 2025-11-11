@@ -15,7 +15,7 @@ export const createSocketServer = (app: express.Application) => {
         cors: {
             origin: process.env.NODE_ENV === 'production'
                 ? [process.env.CLIENT_URL || '', 'https://raved.app', 'https://www.raved.app']
-                : ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', '*'],
+                : true, // Allow all origins in development (needed for React Native)
             credentials: true
         }
     });
@@ -34,17 +34,23 @@ export const createSocketServer = (app: express.Application) => {
                 return next(new Error('Invalid token'));
             }
 
+            // Support tokens that carry `userId` or `id` in payload (matching auth middleware)
+            const userId = decoded?.userId || decoded?.id;
+            if (!userId) {
+                return next(new Error('Invalid token: missing user identifier'));
+            }
+
             // Get user info
             const result = await pgPool.query(
                 'SELECT id, username, first_name, last_name FROM users WHERE id = $1 AND deleted_at IS NULL',
-                [decoded.userId]
+                [userId]
             );
 
             if (result.rows.length === 0) {
                 return next(new Error('User not found'));
             }
 
-            socket.userId = decoded.userId;
+            socket.userId = userId;
             socket.username = result.rows[0].username;
             next();
         } catch (error) {

@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.searchService = void 0;
 const database_1 = require("../config/database");
 const post_model_1 = require("../models/mongoose/post.model");
+const utils_1 = require("../utils");
 // Advanced query parser
 const parseSearchQuery = (query) => {
     const terms = [];
@@ -250,7 +251,7 @@ exports.searchService = {
                 id: u.id,
                 username: u.username,
                 name: `${u.first_name} ${u.last_name}`,
-                avatarUrl: u.avatar_url,
+                avatarUrl: (0, utils_1.getAvatarUrl)(u.avatar_url, u.id),
                 faculty: u.faculty,
                 bio: u.bio,
                 stats: {
@@ -335,7 +336,7 @@ exports.searchService = {
                 userMap[u.id] = {
                     username: u.username,
                     name: `${u.first_name} ${u.last_name}`,
-                    avatarUrl: u.avatar_url
+                    avatarUrl: (0, utils_1.getAvatarUrl)(u.avatar_url, u.id)
                 };
             });
             results.posts = posts.map(p => ({
@@ -412,7 +413,7 @@ exports.searchService = {
                     id: s.id,
                     username: s.username,
                     name: `${s.first_name} ${s.last_name}`,
-                    avatarUrl: s.avatar_url
+                    avatarUrl: (0, utils_1.getAvatarUrl)(s.avatar_url, s.id)
                 };
             });
             results.items = itemResult.rows.map(item => ({

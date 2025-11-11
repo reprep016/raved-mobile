@@ -1228,3 +1228,8 @@
 {"timestamp":"2025-11-11T02:06:41.294Z","level":"info","method":"GET","url":"/api/v1/posts/feed?page=1","ip":"::1","userAgent":"curl/8.16.0"}
 {"timestamp":"2025-11-11T02:06:41.300Z","level":"info","method":"GET","url":"/api/v1/posts/feed?page=1","statusCode":401,"responseTime":6,"ip":"::1","userAgent":"curl/8.16.0"}
 {"timestamp":"2025-11-11T02:06:41.301Z","level":"info","method":"GET","url":"/api/v1/posts/feed?page=1","statusCode":401,"ip":"::1","userAgent":"curl/8.16.0"}
+{"timestamp":"2025-11-11T04:15:03.678Z","level":"error","message":"Failed to get realtime metrics","error":"Connection terminated due to connection timeout"}
+{"timestamp":"2025-11-11T04:15:03.678Z","level":"error","message":"Failed to update real-time cache","error":"Connection terminated due to connection timeout"}
+{"timestamp":"2025-11-11T04:30:03.369Z","level":"error","message":"Failed to get realtime metrics","error":"Connection terminated due to connection timeout"}
+{"timestamp":"2025-11-11T04:30:03.372Z","level":"error","message":"Failed to update real-time cache","error":"Connection terminated due to connection timeout"}
+{"timestamp":"2025-11-11T06:15:03.616Z","level":"info"}

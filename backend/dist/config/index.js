@@ -20,7 +20,7 @@ exports.CONFIG = {
     MONGODB_URL: process.env.MONGODB_URL || 'mongodb://localhost:27017/raved_app',
     REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
     // File Upload
-    MAX_FILE_SIZE: 10 * 1024 * 1024,
+    MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
     ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/webp'],
     ALLOWED_VIDEO_TYPES: ['video/mp4', 'video/webm'],
     // Payment (Paystack)
@@ -43,10 +43,10 @@ exports.CONFIG = {
         WEEKLY_FEATURE: 100
     },
     // Rate Limiting
-    RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
+    RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
     RATE_LIMIT_MAX_REQUESTS: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
     // Cache Configuration
-    CACHE_TTL: parseInt(process.env.CACHE_TTL || '3600'),
+    CACHE_TTL: parseInt(process.env.CACHE_TTL || '3600'), // 1 hour
     REDIS_CACHE_PREFIX: process.env.REDIS_CACHE_PREFIX || 'raved:',
     // Logging
     LOG_LEVEL: process.env.LOG_LEVEL || 'info',

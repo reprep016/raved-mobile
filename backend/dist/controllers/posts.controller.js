@@ -15,18 +15,28 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPostComments = exports.commentOnPost = exports.likePost = exports.getPost = exports.getFeed = exports.createPost = void 0;
+exports.getFacultyPosts = exports.getPostComments = exports.commentOnPost = exports.likePost = exports.getPost = exports.getFeed = exports.createPost = void 0;
 const express_validator_1 = require("express-validator");
 const mongoose_1 = require("../models/mongoose");
 const database_1 = require("../config/database");
@@ -85,7 +95,7 @@ const createPost = async (req, res) => {
                     createdAt: new Date(),
                     deviceId: req.headers['x-device-id'],
                 },
-                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
                 priority: 1,
                 tags: ['post', 'create', 'offline'],
             };
@@ -195,7 +205,7 @@ const createPost = async (req, res) => {
                 cacheable: true,
                 strategies: [{
                         key: 'content',
-                        ttl: 600,
+                        ttl: 600, // 10 minutes
                         priority: 'high',
                     }],
                 fallbackStrategy: 'cache_first',
@@ -337,12 +347,53 @@ async function fetchFeedData(userId, page, limit, faculty) {
         targetType: 'post'
     }).lean();
     const likedPostIds = new Set(likes.map(l => l.targetId));
-    // Enrich posts with user data
+    // Enrich posts with user data and transform to frontend format
     const enrichedPosts = posts.map(post => ({
-        ...post,
-        user: userMap[post.userId],
+        id: post._id.toString(),
+        user: {
+            id: userMap[post.userId]?.id || post.userId,
+            name: userMap[post.userId]?.name || 'Unknown User',
+            username: userMap[post.userId]?.username,
+            avatar: userMap[post.userId]?.avatarUrl || '',
+            faculty: userMap[post.userId]?.faculty || 'Unknown'
+        },
+        caption: post.caption || '',
+        media: {
+            type: post.type,
+            url: post.media?.image || post.media?.video,
+            thumbnail: post.media?.thumbnail,
+            items: post.media?.images || []
+        },
+        tags: post.tags || [],
+        likes: post.likesCount || 0,
+        comments: post.commentsCount || 0,
+        shares: post.sharesCount || 0,
+        timeAgo: (0, utils_1.getTimeAgo)(post.createdAt),
         isLiked: likedPostIds.has(post._id.toString()),
-        timeAgo: (0, utils_1.getTimeAgo)(post.createdAt)
+        liked: likedPostIds.has(post._id.toString()),
+        saved: false, // TODO: implement save functionality
+        forSale: post.isForSale,
+        price: post.saleDetails?.price,
+        saleDetails: post.isForSale && post.saleDetails ? {
+            itemName: post.caption || 'Fashion Item',
+            price: post.saleDetails.price,
+            originalPrice: undefined,
+            category: post.saleDetails.category,
+            condition: post.saleDetails.condition,
+            size: post.saleDetails.size,
+            brand: undefined,
+            color: undefined,
+            material: undefined,
+            paymentMethods: post.saleDetails.paymentMethods,
+            meetupLocation: post.saleDetails.meetupLocation,
+            sellerPhone: post.saleDetails.contactPhone,
+            negotiable: false
+        } : undefined,
+        location: post.location,
+        brand: post.brand,
+        occasion: post.occasion,
+        visibility: post.visibility,
+        createdAt: post.createdAt
     }));
     return {
         posts: enrichedPosts,
@@ -377,16 +428,51 @@ const getPost = async (req, res) => {
         res.json({
             success: true,
             post: {
-                ...post,
+                id: post._id.toString(),
                 user: {
                     id: user.rows[0].id,
-                    username: user.rows[0].username,
                     name: `${user.rows[0].first_name} ${user.rows[0].last_name}`,
-                    avatarUrl: user.rows[0].avatar_url,
+                    username: user.rows[0].username,
+                    avatar: user.rows[0].avatar_url || '',
                     faculty: user.rows[0].faculty
                 },
+                caption: post.caption || '',
+                media: {
+                    type: post.type,
+                    url: post.media?.image || post.media?.video,
+                    thumbnail: post.media?.thumbnail,
+                    items: post.media?.images || []
+                },
+                tags: post.tags || [],
+                likes: post.likesCount || 0,
+                comments: post.commentsCount || 0,
+                shares: post.sharesCount || 0,
+                timeAgo: (0, utils_1.getTimeAgo)(post.createdAt),
                 isLiked: !!like,
-                timeAgo: (0, utils_1.getTimeAgo)(post.createdAt)
+                liked: !!like,
+                saved: false, // TODO: implement save functionality
+                forSale: post.isForSale,
+                price: post.saleDetails?.price,
+                saleDetails: post.isForSale && post.saleDetails ? {
+                    itemName: post.caption || 'Fashion Item',
+                    price: post.saleDetails.price,
+                    originalPrice: undefined,
+                    category: post.saleDetails.category,
+                    condition: post.saleDetails.condition,
+                    size: post.saleDetails.size,
+                    brand: undefined,
+                    color: undefined,
+                    material: undefined,
+                    paymentMethods: post.saleDetails.paymentMethods,
+                    meetupLocation: post.saleDetails.meetupLocation,
+                    sellerPhone: post.saleDetails.contactPhone,
+                    negotiable: false
+                } : undefined,
+                location: post.location,
+                brand: post.brand,
+                occasion: post.occasion,
+                visibility: post.visibility,
+                createdAt: post.createdAt
             }
         });
     }
@@ -557,7 +643,7 @@ const getPostComments = async (req, res) => {
         const skip = (page - 1) * limit;
         const comments = await mongoose_1.Comment.find({
             postId,
-            parentCommentId: null,
+            parentCommentId: null, // Only top-level comments
             deletedAt: null
         })
             .sort({ createdAt: -1 })
@@ -597,3 +683,105 @@ const getPostComments = async (req, res) => {
     }
 };
 exports.getPostComments = getPostComments;
+const getFacultyPosts = async (req, res) => {
+    try {
+        const { facultyId } = req.params;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const userId = req.user.id;
+        // Convert facultyId back to faculty name
+        const facultyName = facultyId.replace(/-/g, ' ');
+        const skip = (page - 1) * limit;
+        // Get posts from MongoDB filtered by faculty
+        const posts = await mongoose_1.Post.find({
+            faculty: facultyName,
+            deletedAt: null,
+            $or: [
+                { visibility: 'public' },
+                { visibility: 'faculty' }
+            ]
+        })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean();
+        // Get user info for each post from PostgreSQL
+        const userIds = [...new Set(posts.map(p => p.userId))];
+        const users = await database_1.pgPool.query('SELECT id, username, first_name, last_name, avatar_url, faculty FROM users WHERE id = ANY($1)', [userIds]);
+        const userMap = {};
+        users.rows.forEach(u => {
+            userMap[u.id] = {
+                id: u.id,
+                username: u.username,
+                name: `${u.first_name} ${u.last_name}`,
+                avatarUrl: u.avatar_url,
+                faculty: u.faculty
+            };
+        });
+        // Check if current user liked each post
+        const postIds = posts.map(p => p._id.toString());
+        const likes = await mongoose_1.Like.find({
+            userId,
+            targetId: { $in: postIds },
+            targetType: 'post'
+        }).lean();
+        const likedPostIds = new Set(likes.map(l => l.targetId));
+        // Enrich posts with user data
+        const enrichedPosts = posts.map(post => ({
+            id: post._id.toString(),
+            user: {
+                id: userMap[post.userId]?.id || post.userId,
+                name: userMap[post.userId]?.name || 'Unknown User',
+                username: userMap[post.userId]?.username,
+                avatar: userMap[post.userId]?.avatarUrl || '',
+                faculty: userMap[post.userId]?.faculty || 'Unknown'
+            },
+            caption: post.caption || '',
+            media: {
+                type: post.type,
+                url: post.media?.image || post.media?.video,
+                thumbnail: post.media?.thumbnail,
+                items: post.media?.images || []
+            },
+            tags: post.tags || [],
+            likes: post.likesCount || 0,
+            comments: post.commentsCount || 0,
+            shares: post.sharesCount || 0,
+            timeAgo: (0, utils_1.getTimeAgo)(post.createdAt),
+            isLiked: likedPostIds.has(post._id.toString()),
+            liked: likedPostIds.has(post._id.toString()),
+            saved: false,
+            forSale: post.isForSale,
+            price: post.saleDetails?.price,
+            saleDetails: post.isForSale && post.saleDetails ? {
+                itemName: post.caption || 'Fashion Item',
+                price: post.saleDetails.price,
+                originalPrice: undefined,
+                category: post.saleDetails.category,
+                condition: post.saleDetails.condition,
+                size: post.saleDetails.size,
+                brand: undefined,
+                color: undefined,
+                material: undefined,
+                paymentMethods: post.saleDetails.paymentMethods,
+                meetupLocation: post.saleDetails.meetupLocation,
+                sellerPhone: post.saleDetails.contactPhone,
+                negotiable: false
+            } : undefined
+        }));
+        res.json({
+            success: true,
+            posts: enrichedPosts,
+            pagination: {
+                page,
+                limit,
+                hasMore: posts.length === limit
+            }
+        });
+    }
+    catch (error) {
+        console.error('Get Faculty Posts Error:', error);
+        res.status(500).json({ error: 'Failed to get faculty posts' });
+    }
+};
+exports.getFacultyPosts = getFacultyPosts;

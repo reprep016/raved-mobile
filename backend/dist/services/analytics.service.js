@@ -219,7 +219,7 @@ class AnalyticsService {
     `, [
             startDate,
             endDate,
-            new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
             new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
         ]);
         return result.rows[0];

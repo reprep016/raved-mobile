@@ -87,19 +87,28 @@ async function seedInitialData() {
 
     console.log('🌱 Seeding initial data...');
 
+    // Ensure role column exists
+    await pgPool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';
+    `);
+
     // Create admin user
-    const adminPassword = await import('../utils/auth.utils').then(m => m.hashPassword('admin123'));
+    const { hashPassword } = await import('../utils/auth.utils');
+    const adminPassword = await hashPassword('admin123');
     await pgPool.query(`
       INSERT INTO users (
         username, email, phone, password_hash,
         first_name, last_name, faculty, university,
-        email_verified, phone_verified, role
+        email_verified, phone_verified, role, subscription_tier
       ) VALUES (
         'admin', 'admin@raved.app', '+233123456789', $1,
         'System', 'Administrator', 'Administration', 'Raved University',
-        true, true, 'admin'
+        true, true, 'admin', 'premium'
       )
-      ON CONFLICT (username) DO NOTHING
+      ON CONFLICT (username) DO UPDATE SET
+        role = 'admin',
+        subscription_tier = 'premium',
+        updated_at = CURRENT_TIMESTAMP
     `, [adminPassword]);
 
     // Initialize trust score for admin

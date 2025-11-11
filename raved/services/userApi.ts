@@ -137,6 +137,30 @@ export const userApi = {
     const response = await api.get('/users/rankings', { params: { type, faculty } });
     return response.data;
   },
+
+  // Get user posts
+  getUserPosts: async (userId: string, page = 1, limit = 20) => {
+    const response = await api.get(`/users/${userId}/posts`, { params: { page, limit } });
+    return response.data;
+  },
+
+  // Get user comments
+  getUserComments: async (userId: string, page = 1, limit = 20) => {
+    const response = await api.get(`/users/${userId}/comments`, { params: { page, limit } });
+    return response.data;
+  },
+
+  // Get user liked posts
+  getUserLikedPosts: async (userId: string, page = 1, limit = 20) => {
+    const response = await api.get(`/users/${userId}/liked-posts`, { params: { page, limit } });
+    return response.data;
+  },
+
+  // Get user saved posts
+  getUserSavedPosts: async (userId: string, page = 1, limit = 20) => {
+    const response = await api.get(`/users/${userId}/saved-posts`, { params: { page, limit } });
+    return response.data;
+  },
 };
 
 export default userApi;

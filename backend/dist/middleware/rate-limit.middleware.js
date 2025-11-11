@@ -10,15 +10,15 @@ const config_1 = require("../config");
 // These will be gradually replaced with the new Redis-based system
 // General API rate limiter
 exports.apiLimiter = (0, express_rate_limit_1.default)({
-    windowMs: config_1.CONFIG.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000,
-    max: config_1.CONFIG.RATE_LIMIT_MAX_REQUESTS || 100,
+    windowMs: config_1.CONFIG.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000, // 15 minutes
+    max: config_1.CONFIG.RATE_LIMIT_MAX_REQUESTS || 100, // limit each IP to 100 requests per windowMs
     message: {
         success: false,
         error: 'Too many requests from this IP, please try again later.',
         retryAfter: Math.ceil((config_1.CONFIG.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000) / 1000)
     },
-    standardHeaders: true,
-    legacyHeaders: false,
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
     skip: (req) => {
         // Skip rate limiting for health checks and static files
         return req.path === '/health' || req.path.startsWith('/static/');
@@ -26,8 +26,8 @@ exports.apiLimiter = (0, express_rate_limit_1.default)({
 });
 // Stricter limiter for authentication endpoints
 exports.authLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // limit each IP to 5 auth attempts per windowMs
     message: {
         success: false,
         error: 'Too many authentication attempts, please try again later.',
@@ -35,13 +35,13 @@ exports.authLimiter = (0, express_rate_limit_1.default)({
     },
     standardHeaders: true,
     legacyHeaders: false,
-    skipSuccessfulRequests: true,
+    skipSuccessfulRequests: true, // Don't count successful requests
     skipFailedRequests: false // Count failed requests (brute force protection)
 });
 // Limiter for file uploads
 exports.uploadLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 60 * 60 * 1000,
-    max: 20,
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 20, // limit each IP to 20 uploads per hour
     message: {
         success: false,
         error: 'Upload limit exceeded, please try again later.',
@@ -52,8 +52,8 @@ exports.uploadLimiter = (0, express_rate_limit_1.default)({
 });
 // Limiter for search endpoints
 exports.searchLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 60 * 1000,
-    max: 30,
+    windowMs: 60 * 1000, // 1 minute
+    max: 30, // limit each IP to 30 searches per minute
     message: {
         success: false,
         error: 'Too many search requests, please slow down.',
@@ -64,8 +64,8 @@ exports.searchLimiter = (0, express_rate_limit_1.default)({
 });
 // Limiter for post creation
 exports.postLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 60 * 60 * 1000,
-    max: 10,
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10, // limit each user to 10 posts per hour
     message: {
         success: false,
         error: 'Post creation limit exceeded, please try again later.',
@@ -80,8 +80,8 @@ exports.postLimiter = (0, express_rate_limit_1.default)({
 });
 // Limiter for comments
 exports.commentLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 60 * 60 * 1000,
-    max: 50,
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 50, // limit each user to 50 comments per hour
     message: {
         success: false,
         error: 'Comment limit exceeded, please try again later.',
@@ -95,8 +95,8 @@ exports.commentLimiter = (0, express_rate_limit_1.default)({
 });
 // Limiter for likes/follows
 exports.interactionLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 60 * 60 * 1000,
-    max: 100,
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 100, // limit each user to 100 interactions per hour
     message: {
         success: false,
         error: 'Interaction limit exceeded, please try again later.',

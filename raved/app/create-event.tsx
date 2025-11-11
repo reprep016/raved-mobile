@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -17,6 +18,7 @@ import { Toggle } from '../components/ui/Toggle';
 import { useAuth } from '../hooks/useAuth';
 import { Event } from '../types';
 import { mockImages } from '../utils/mockData';
+import { eventsApi } from '../services/eventsApi';
 
 export default function CreateEventScreen() {
   const router = useRouter();
@@ -34,6 +36,7 @@ export default function CreateEventScreen() {
   const [requireRegistration, setRequireRegistration] = useState(true);
   const [allowWaitlist, setAllowWaitlist] = useState(true);
   const [sendReminders, setSendReminders] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const categoryOptions = [
     { value: 'fashion', label: 'Fashion Show' },
@@ -50,34 +53,45 @@ export default function CreateEventScreen() {
     { value: 'public', label: 'Open to Public' },
   ];
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!title.trim() || !date || !time || !category || !location.trim()) {
-      // Show error toast - for now just return
+      Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
-    const newEvent: Event = {
-      id: 'ev_' + Date.now(),
-      title: title.trim(),
-      organizer: user?.name || 'Unknown',
-      orgAvatar: user?.avatar || '',
-      date,
-      time,
-      location: location.trim(),
-      category,
-      audience,
-      description: description.trim(),
-      image: mockImages[Math.floor(Math.random() * mockImages.length)],
-      attendees: 1,
-      max: parseInt(capacity) || 50,
-      attending: true,
-      tags: [],
-      ownerId: user?.id || 'unknown',
-    };
+    try {
+      setLoading(true);
+      
+      // Format date and time
+      const eventDate = new Date(date);
+      const [hours, minutes] = time.split(':');
+      eventDate.setHours(parseInt(hours), parseInt(minutes));
 
-    // TODO: Save event to store/state
-    // For now, just navigate back
-    router.back();
+      const eventData = new FormData();
+      eventData.append('title', title.trim());
+      eventData.append('description', description.trim() || '');
+      eventData.append('date', eventDate.toISOString().split('T')[0]);
+      eventData.append('time', time);
+      eventData.append('location', location.trim());
+      eventData.append('category', category);
+      eventData.append('audience', audience);
+      if (capacity) {
+        eventData.append('maxAttendees', capacity);
+      }
+      if (fee) {
+        eventData.append('registrationFee', fee);
+      }
+
+      await eventsApi.createEvent(eventData);
+      
+      Alert.alert('Success', 'Event created successfully!');
+      router.back();
+    } catch (error: any) {
+      console.error('Failed to create event:', error);
+      Alert.alert('Error', error.message || 'Failed to create event');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

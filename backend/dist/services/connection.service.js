@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.connectionService = void 0;
 const database_1 = require("../config/database");
 const notifications_controller_1 = require("../controllers/notifications.controller");
+const utils_1 = require("../utils");
 exports.connectionService = {
     sendFollowRequest: async (followerId, followingId) => {
         if (followerId === followingId) {
@@ -55,7 +56,7 @@ exports.connectionService = {
                 id: row.id,
                 username: row.username,
                 name: `${row.first_name} ${row.last_name}`,
-                avatarUrl: row.avatar_url,
+                avatarUrl: (0, utils_1.getAvatarUrl)(row.avatar_url, row.id),
                 faculty: row.faculty
             },
             requestedAt: row.created_at,
@@ -148,7 +149,7 @@ exports.connectionService = {
             id: row.id,
             username: row.username,
             name: `${row.first_name} ${row.last_name}`,
-            avatarUrl: row.avatar_url,
+            avatarUrl: (0, utils_1.getAvatarUrl)(row.avatar_url, row.id),
             blockedAt: row.blocked_at
         }));
     }

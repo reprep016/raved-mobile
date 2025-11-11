@@ -242,7 +242,9 @@ export const getFeed = async (req: Request, res: Response) => {
                     'post',
                     cacheKey,
                     async () => {
-                        return await fetchFeedData(userId, page, limit, req.user.faculty);
+                        // Use personalized feed algorithm for better recommendations
+        const { FeedAlgorithmService } = await import('../services/feed-algorithm.service');
+        return await FeedAlgorithmService.getPersonalizedFeed(userId, page, limit, req.user.faculty);
                     },
                     {
                         userId,
@@ -317,6 +319,126 @@ export const getFeed = async (req: Request, res: Response) => {
         }
 
         res.status(500).json({ error: 'Failed to get feed' });
+    }
+};
+
+// Get post suggestions
+export const getPostSuggestions = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user.id;
+        const limit = parseInt(req.query.limit as string) || 10;
+
+        const { FeedAlgorithmService } = await import('../services/feed-algorithm.service');
+        const suggestions = await FeedAlgorithmService.getPostSuggestions(userId, limit);
+
+        // Enrich with user data
+        const userIds = [...new Set(suggestions.map(p => p.userId))];
+        const users = await pgPool.query(
+            'SELECT id, username, first_name, last_name, avatar_url, faculty FROM users WHERE id = ANY($1)',
+            [userIds]
+        );
+
+        const userMap: any = {};
+        users.rows.forEach(u => {
+            userMap[u.id] = {
+                id: u.id,
+                username: u.username,
+                name: `${u.first_name} ${u.last_name}`,
+                avatarUrl: u.avatar_url,
+                faculty: u.faculty
+            };
+        });
+
+        const enrichedSuggestions = suggestions.map(post => ({
+            id: post._id.toString(),
+            type: post.type,
+            caption: post.caption,
+            media: post.media,
+            location: post.location,
+            tags: post.tags || [],
+            likesCount: post.likesCount || 0,
+            commentsCount: post.commentsCount || 0,
+            sharesCount: post.sharesCount || 0,
+            viewsCount: post.viewsCount || 0,
+            user: userMap[post.userId],
+            faculty: post.faculty,
+            createdAt: post.createdAt,
+            isLiked: false, // Would need to check
+        }));
+
+        res.json({
+            success: true,
+            suggestions: enrichedSuggestions
+        });
+    } catch (error) {
+        console.error('Get Post Suggestions Error:', error);
+        res.status(500).json({ error: 'Failed to get post suggestions' });
+    }
+};
+
+// Get trending posts
+export const getTrendingPosts = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user.id;
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 20;
+        const timeWindow = (req.query.timeWindow as '24h' | '7d' | '30d') || '24h';
+
+        const { FeedAlgorithmService } = await import('../services/feed-algorithm.service');
+        const result = await FeedAlgorithmService.getTrendingPosts(userId, page, limit, timeWindow);
+
+        // Enrich with user data (similar to getFeed)
+        const userIds = [...new Set(result.posts.map(p => p.userId))];
+        const users = await pgPool.query(
+            'SELECT id, username, first_name, last_name, avatar_url, faculty FROM users WHERE id = ANY($1)',
+            [userIds]
+        );
+
+        const userMap: any = {};
+        users.rows.forEach(u => {
+            userMap[u.id] = {
+                id: u.id,
+                username: u.username,
+                name: `${u.first_name} ${u.last_name}`,
+                avatarUrl: u.avatar_url,
+                faculty: u.faculty
+            };
+        });
+
+        const postIds = result.posts.map(p => p._id.toString());
+        const likes = await Like.find({
+            userId,
+            targetId: { $in: postIds },
+            targetType: 'post'
+        }).lean();
+
+        const likedPostIds = new Set(likes.map(l => l.targetId));
+
+        const enrichedPosts = result.posts.map(post => ({
+            id: post._id.toString(),
+            type: post.type,
+            caption: post.caption,
+            media: post.media,
+            location: post.location,
+            tags: post.tags || [],
+            likesCount: post.likesCount || 0,
+            commentsCount: post.commentsCount || 0,
+            sharesCount: post.sharesCount || 0,
+            viewsCount: post.viewsCount || 0,
+            user: userMap[post.userId],
+            faculty: post.faculty,
+            createdAt: post.createdAt,
+            isLiked: likedPostIds.has(post._id.toString()),
+        }));
+
+        res.json({
+            success: true,
+            posts: enrichedPosts,
+            pagination: result.pagination
+        });
+    } catch (error) {
+        console.error('Get Trending Posts Error:', error);
+        res.status(500).json({ error: 'Failed to get trending posts' });
     }
 };
 
@@ -753,5 +875,119 @@ export const getPostComments = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Get Comments Error:', error);
         res.status(500).json({ error: 'Failed to get comments' });
+    }
+};
+
+export const getFacultyPosts = async (req: Request, res: Response) => {
+    try {
+        const { facultyId } = req.params;
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 20;
+        const userId = req.user.id;
+        
+        // Convert facultyId back to faculty name
+        const facultyName = facultyId.replace(/-/g, ' ');
+        
+        const skip = (page - 1) * limit;
+        
+        // Get posts from MongoDB filtered by faculty
+        const posts = await Post.find({
+            faculty: facultyName,
+            deletedAt: null,
+            $or: [
+                { visibility: 'public' },
+                { visibility: 'faculty' }
+            ]
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+        
+        // Get user info for each post from PostgreSQL
+        const userIds = [...new Set(posts.map(p => p.userId))];
+        const users = await pgPool.query(
+            'SELECT id, username, first_name, last_name, avatar_url, faculty FROM users WHERE id = ANY($1)',
+            [userIds]
+        );
+        
+        const userMap: any = {};
+        users.rows.forEach(u => {
+            userMap[u.id] = {
+                id: u.id,
+                username: u.username,
+                name: `${u.first_name} ${u.last_name}`,
+                avatarUrl: u.avatar_url,
+                faculty: u.faculty
+            };
+        });
+        
+        // Check if current user liked each post
+        const postIds = posts.map(p => p._id.toString());
+        const likes = await Like.find({
+            userId,
+            targetId: { $in: postIds },
+            targetType: 'post'
+        }).lean();
+        
+        const likedPostIds = new Set(likes.map(l => l.targetId));
+        
+        // Enrich posts with user data
+        const enrichedPosts = posts.map(post => ({
+            id: post._id.toString(),
+            user: {
+                id: userMap[post.userId]?.id || post.userId,
+                name: userMap[post.userId]?.name || 'Unknown User',
+                username: userMap[post.userId]?.username,
+                avatar: userMap[post.userId]?.avatarUrl || '',
+                faculty: userMap[post.userId]?.faculty || 'Unknown'
+            },
+            caption: post.caption || '',
+            media: {
+                type: post.type,
+                url: post.media?.image || post.media?.video,
+                thumbnail: post.media?.thumbnail,
+                items: post.media?.images || []
+            },
+            tags: post.tags || [],
+            likes: post.likesCount || 0,
+            comments: post.commentsCount || 0,
+            shares: post.sharesCount || 0,
+            timeAgo: getTimeAgo(post.createdAt),
+            isLiked: likedPostIds.has(post._id.toString()),
+            liked: likedPostIds.has(post._id.toString()),
+            saved: false,
+            forSale: post.isForSale,
+            price: post.saleDetails?.price,
+            saleDetails: post.isForSale && post.saleDetails ? {
+                itemName: post.caption || 'Fashion Item',
+                price: (post.saleDetails as any).price,
+                originalPrice: undefined,
+                category: (post.saleDetails as any).category,
+                condition: (post.saleDetails as any).condition,
+                size: (post.saleDetails as any).size,
+                brand: undefined,
+                color: undefined,
+                material: undefined,
+                paymentMethods: (post.saleDetails as any).paymentMethods,
+                meetupLocation: (post.saleDetails as any).meetupLocation,
+                sellerPhone: (post.saleDetails as any).contactPhone,
+                negotiable: false
+            } : undefined
+        }));
+        
+        res.json({
+            success: true,
+            posts: enrichedPosts,
+            pagination: {
+                page,
+                limit,
+                hasMore: posts.length === limit
+            }
+        });
+        
+    } catch (error) {
+        console.error('Get Faculty Posts Error:', error);
+        res.status(500).json({ error: 'Failed to get faculty posts' });
     }
 };

@@ -1,6 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cacheStrategies = exports.clearCacheOnChange = exports.clearCache = exports.cache = void 0;
+exports.cacheStrategies = void 0;
+exports.cache = cache;
+exports.clearCache = clearCache;
+exports.clearCacheOnChange = clearCacheOnChange;
 const database_1 = require("../config/database");
 const config_1 = require("../config");
 function cache(options = {}) {
@@ -38,7 +41,6 @@ function cache(options = {}) {
         }
     };
 }
-exports.cache = cache;
 async function clearCache(pattern) {
     try {
         const keys = await database_1.redis.keys(`${config_1.CONFIG.REDIS_CACHE_PREFIX}${pattern}`);
@@ -50,7 +52,6 @@ async function clearCache(pattern) {
         console.warn('Cache clear error:', error);
     }
 }
-exports.clearCache = clearCache;
 function clearCacheOnChange(pattern) {
     return (req, res, next) => {
         const originalJson = res.json;
@@ -64,7 +65,6 @@ function clearCacheOnChange(pattern) {
         next();
     };
 }
-exports.clearCacheOnChange = clearCacheOnChange;
 function generateCacheKey(req) {
     // Generate a unique key based on request
     const parts = [

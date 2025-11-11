@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.initializeBackgroundJobs = void 0;
+exports.initializeBackgroundJobs = initializeBackgroundJobs;
 // Use require for node-cron to avoid missing declaration issues under ts-node runtime
 const cron = require('node-cron');
 const database_1 = require("../config/database");
@@ -169,7 +169,6 @@ function initializeBackgroundJobs() {
     cron.schedule('0 4 * * 0', verifyBackupIntegrity);
     console.log('✅ Background jobs initialized');
 }
-exports.initializeBackgroundJobs = initializeBackgroundJobs;
 // Clean up expired stories
 async function cleanupExpiredStories() {
     try {

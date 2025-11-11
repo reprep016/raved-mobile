@@ -86,6 +86,9 @@ export async function initializePostgresSchema() {
         subscription_expires_at TIMESTAMP,
         trial_started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         
+        -- Role
+        role VARCHAR(20) DEFAULT 'user',
+        
         -- Metadata
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -600,6 +603,25 @@ export async function initializePostgresSchema() {
       CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);
       CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
+    `);
+
+    // Support Requests Table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS support_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        subject VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        status VARCHAR(20) DEFAULT 'open',
+        response TEXT,
+        responded_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_support_requests_user ON support_requests(user_id);
+      CREATE INDEX IF NOT EXISTS idx_support_requests_status ON support_requests(status);
+      CREATE INDEX IF NOT EXISTS idx_support_requests_created ON support_requests(created_at DESC);
     `);
 
     // Analytics Events Table

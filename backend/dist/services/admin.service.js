@@ -5,6 +5,7 @@ const database_1 = require("../config/database");
 const notification_model_1 = require("../models/mongoose/notification.model");
 const post_model_1 = require("../models/mongoose/post.model");
 const comment_model_1 = require("../models/mongoose/comment.model");
+const utils_1 = require("../utils");
 exports.adminService = {
     getReports: async (status, type, page, limit) => {
         const offset = (page - 1) * limit;
@@ -254,7 +255,7 @@ exports.adminService = {
             username: row.username,
             email: row.email,
             name: `${row.first_name} ${row.last_name}`,
-            avatarUrl: row.avatar_url,
+            avatarUrl: (0, utils_1.getAvatarUrl)(row.avatar_url, row.id),
             faculty: row.faculty,
             subscriptionTier: row.subscription_tier,
             isSuspended: row.suspended_until && row.suspended_until > new Date(),

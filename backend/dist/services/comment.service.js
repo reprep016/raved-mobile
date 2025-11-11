@@ -4,6 +4,7 @@ exports.commentOnPost = void 0;
 const mongoose_1 = require("../models/mongoose");
 const database_1 = require("../config/database");
 const notifications_controller_1 = require("../controllers/notifications.controller");
+const utils_1 = require("../utils");
 const commentOnPost = async (postId, userId, text, parentCommentId, userSubscription) => {
     const post = await mongoose_1.Post.findOne({ _id: postId, deletedAt: null });
     if (!post) {
@@ -36,7 +37,7 @@ const commentOnPost = async (postId, userId, text, parentCommentId, userSubscrip
                 id: user.rows[0].id,
                 username: user.rows[0].username,
                 name: `${user.rows[0].first_name} ${user.rows[0].last_name}`,
-                avatarUrl: user.rows[0].avatar_url
+                avatarUrl: (0, utils_1.getAvatarUrl)(user.rows[0].avatar_url, user.rows[0].id)
             },
             createdAt: comment.createdAt,
         };

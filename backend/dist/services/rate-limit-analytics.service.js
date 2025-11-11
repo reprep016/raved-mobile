@@ -26,7 +26,7 @@ class RateLimitAnalyticsService {
      * Get rate limit statistics
      */
     getStatistics(timeRange = {
-        start: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        start: new Date(Date.now() - 24 * 60 * 60 * 1000), // Last 24 hours
         end: new Date()
     }) {
         const filteredEvents = this.analytics.filter(event => event.timestamp >= timeRange.start && event.timestamp <= timeRange.end);

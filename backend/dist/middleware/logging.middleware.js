@@ -1,6 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.healthLogger = exports.apiAnalytics = exports.securityLogger = exports.performanceMonitor = exports.errorLogger = exports.requestLogger = exports.logger = void 0;
+exports.logger = void 0;
+exports.requestLogger = requestLogger;
+exports.errorLogger = errorLogger;
+exports.performanceMonitor = performanceMonitor;
+exports.securityLogger = securityLogger;
+exports.apiAnalytics = apiAnalytics;
+exports.healthLogger = healthLogger;
 const fs_1 = require("fs");
 const path_1 = require("path");
 const config_1 = require("../config");
@@ -80,7 +86,6 @@ function requestLogger(req, res, next) {
     });
     next();
 }
-exports.requestLogger = requestLogger;
 // Error logging middleware
 function errorLogger(error, req, res, next) {
     const userId = req.user?.id;
@@ -94,7 +99,6 @@ function errorLogger(error, req, res, next) {
     });
     next(error);
 }
-exports.errorLogger = errorLogger;
 // Performance monitoring middleware
 function performanceMonitor(req, res, next) {
     const startTime = process.hrtime.bigint();
@@ -131,14 +135,13 @@ function performanceMonitor(req, res, next) {
     });
     next();
 }
-exports.performanceMonitor = performanceMonitor;
 // Security event logging
 function securityLogger(req, res, next) {
     // Log suspicious activities
     const suspiciousPatterns = [
         /\bUNION\b|\bSELECT\b|\bDROP\b|\bDELETE\b/i,
         /<script/i,
-        /\.\./,
+        /\.\./, // Directory traversal
         /etc\/passwd/i
     ];
     const checkForSuspicious = (value) => {
@@ -163,7 +166,6 @@ function securityLogger(req, res, next) {
     }
     next();
 }
-exports.securityLogger = securityLogger;
 // API usage analytics
 function apiAnalytics(req, res, next) {
     res.on('finish', () => {
@@ -180,7 +182,6 @@ function apiAnalytics(req, res, next) {
     });
     next();
 }
-exports.apiAnalytics = apiAnalytics;
 // Health check endpoint logger
 function healthLogger(req, res, next) {
     if (req.path === '/health') {
@@ -192,4 +193,3 @@ function healthLogger(req, res, next) {
     }
     next();
 }
-exports.healthLogger = healthLogger;

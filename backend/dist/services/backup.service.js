@@ -244,7 +244,7 @@ class BackupService {
             username: `user_${crypto_1.default.randomBytes(4).toString('hex')}`,
             phone: user.phone ? this.hashValue(user.phone) : null,
             student_id: user.student_id ? this.hashValue(user.student_id) : null,
-            location: null,
+            location: null, // Remove location for privacy
             bio: null // Remove bio for privacy
         };
     }
@@ -267,7 +267,7 @@ class BackupService {
     anonymizeOrderData(order) {
         return {
             ...order,
-            delivery_address: null,
+            delivery_address: null, // Remove delivery address
             buyer_phone: null // Remove phone number
         };
     }

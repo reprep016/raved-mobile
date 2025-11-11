@@ -3,7 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.initializePostgresSchema = exports.redis = exports.connectDB = exports.pgPool = void 0;
+exports.redis = exports.connectDB = exports.pgPool = void 0;
+exports.initializePostgresSchema = initializePostgresSchema;
 const mongoose_1 = __importDefault(require("mongoose"));
 const pg_1 = require("pg");
 const ioredis_1 = __importDefault(require("ioredis"));
@@ -28,7 +29,21 @@ const connectDB = async () => {
 };
 exports.connectDB = connectDB;
 // Redis Connection
-exports.redis = new ioredis_1.default(index_1.CONFIG.REDIS_URL);
+// Make Redis connection resilient to transient DNS/network errors
+exports.redis = new ioredis_1.default(index_1.CONFIG.REDIS_URL, {
+    // exponential backoff up to 2s
+    retryStrategy: (times) => Math.min(times * 50, 2000),
+    // reconnect on certain network errors
+    reconnectOnError: (err) => {
+        if (!err)
+            return false;
+        const codes = ['ECONNREFUSED', 'ENOTFOUND', 'ECONNRESET'];
+        return codes.includes(err.code);
+    },
+    // allow unlimited retries per request (avoid immediate errors while reconnecting)
+    maxRetriesPerRequest: null,
+    enableOfflineQueue: true,
+});
 exports.redis.on('connect', () => console.log('✅ Redis Connected'));
 exports.redis.on('error', (err) => console.error('❌ Redis Error:', err));
 async function initializePostgresSchema() {
@@ -100,6 +115,46 @@ async function initializePostgresSchema() {
       
       CREATE INDEX IF NOT EXISTS idx_connections_follower ON connections(follower_id);
       CREATE INDEX IF NOT EXISTS idx_connections_following ON connections(following_id);
+    `);
+        // Conversations Table
+        await client.query(`
+      CREATE TABLE IF NOT EXISTS conversations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        participant1_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        participant2_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        last_message_id VARCHAR(255),
+        last_message_at TIMESTAMP,
+        unread_count1 INTEGER DEFAULT 0,
+        unread_count2 INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMP,
+        UNIQUE(participant1_id, participant2_id),
+        CHECK (participant1_id < participant2_id)
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_conversations_participant1 ON conversations(participant1_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_participant2 ON conversations(participant2_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_last_message ON conversations(last_message_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversations_deleted ON conversations(deleted_at);
+    `);
+        // Messages Table
+        await client.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+        sender_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        message_type VARCHAR(50) DEFAULT 'text',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMP
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_messages_deleted ON messages(deleted_at);
     `);
         // Events Table
         await client.query(`
@@ -295,10 +350,102 @@ async function initializePostgresSchema() {
       CREATE INDEX IF NOT EXISTS idx_ranking_prizes_user ON ranking_prizes(user_id);
       CREATE INDEX IF NOT EXISTS idx_ranking_prizes_period ON ranking_prizes(ranking_period);
     `);
+        // Posts Table (MongoDB equivalent in PostgreSQL)
+        await client.query(`
+      CREATE TABLE IF NOT EXISTS posts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        type VARCHAR(20) NOT NULL CHECK (type IN ('image', 'video', 'carousel', 'text')),
+        caption TEXT,
+        media JSONB DEFAULT '{}',
+        location VARCHAR(255),
+        tags TEXT[] DEFAULT '{}',
+        brand VARCHAR(100),
+        occasion VARCHAR(100),
+        visibility VARCHAR(20) DEFAULT 'public' CHECK (visibility IN ('public', 'faculty', 'connections', 'private')),
+        is_for_sale BOOLEAN DEFAULT FALSE,
+        sale_details JSONB DEFAULT '{}',
+        likes_count INTEGER DEFAULT 0,
+        comments_count INTEGER DEFAULT 0,
+        shares_count INTEGER DEFAULT 0,
+        saves_count INTEGER DEFAULT 0,
+        views_count INTEGER DEFAULT 0,
+        is_featured BOOLEAN DEFAULT FALSE,
+        featured_at TIMESTAMP,
+        faculty VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id);
+      CREATE INDEX IF NOT EXISTS idx_posts_visibility ON posts(visibility);
+      CREATE INDEX IF NOT EXISTS idx_posts_faculty ON posts(faculty);
+      CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_posts_is_featured ON posts(is_featured, created_at DESC);
+    `);
+        // Comments Table
+        await client.query(`
+      CREATE TABLE IF NOT EXISTS comments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        likes_count INTEGER DEFAULT 0,
+        replies_count INTEGER DEFAULT 0,
+        parent_id UUID REFERENCES comments(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id);
+      CREATE INDEX IF NOT EXISTS idx_comments_user ON comments(user_id);
+      CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id);
+      CREATE INDEX IF NOT EXISTS idx_comments_created ON comments(created_at DESC);
+    `);
+        // Likes Table
+        await client.query(`
+      CREATE TABLE IF NOT EXISTS likes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+        comment_id UUID REFERENCES comments(id) ON DELETE CASCADE,
+        type VARCHAR(20) NOT NULL CHECK (type IN ('post', 'comment')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, post_id),
+        UNIQUE(user_id, comment_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id);
+      CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id);
+      CREATE INDEX IF NOT EXISTS idx_likes_comment ON likes(comment_id);
+    `);
+        // Stories Table
+        await client.query(`
+      CREATE TABLE IF NOT EXISTS stories (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        type VARCHAR(20) NOT NULL CHECK (type IN ('image', 'video')),
+        media JSONB DEFAULT '{}',
+        caption TEXT,
+        location VARCHAR(255),
+        views_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP,
+        deleted_at TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_stories_user ON stories(user_id);
+      CREATE INDEX IF NOT EXISTS idx_stories_created ON stories(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_stories_expires ON stories(expires_at);
+    `);
         // Theme preferences
         await client.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS theme_preference VARCHAR(50) DEFAULT 'default';
       ALTER TABLE users ADD COLUMN IF NOT EXISTS dark_mode_preference BOOLEAN DEFAULT FALSE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS sms_two_factor_enabled BOOLEAN DEFAULT FALSE;
     `);
         // Blocked users
         await client.query(`
@@ -721,6 +868,46 @@ async function initializePostgresSchema() {
        CREATE INDEX IF NOT EXISTS idx_deep_link_clicks_link ON deep_link_clicks(deep_link_id);
        CREATE INDEX IF NOT EXISTS idx_deep_link_clicks_time ON deep_link_clicks(clicked_at DESC);
      `);
+        // Offline Queues Table
+        await client.query(`
+      CREATE TABLE IF NOT EXISTS offline_queues (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        request_type VARCHAR(50) NOT NULL,
+        endpoint VARCHAR(255) NOT NULL,
+        method VARCHAR(10) NOT NULL,
+        data JSONB DEFAULT '{}',
+        status VARCHAR(20) DEFAULT 'pending',
+        retry_count INTEGER DEFAULT 0,
+        max_retries INTEGER DEFAULT 3,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        processed_at TIMESTAMP,
+        error_message TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_offline_queues_user ON offline_queues(user_id);
+      CREATE INDEX IF NOT EXISTS idx_offline_queues_status ON offline_queues(status);
+      CREATE INDEX IF NOT EXISTS idx_offline_queues_created ON offline_queues(created_at);
+    `);
+        // Offline Data Table
+        await client.query(`
+      CREATE TABLE IF NOT EXISTS offline_data (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        resource_type VARCHAR(50) NOT NULL,
+        resource_id VARCHAR(255) NOT NULL,
+        data JSONB DEFAULT '{}',
+        sync_status VARCHAR(20) DEFAULT 'pending',
+        retry_count INTEGER DEFAULT 0,
+        last_synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_offline_data_user ON offline_data(user_id);
+      CREATE INDEX IF NOT EXISTS idx_offline_data_resource ON offline_data(resource_type, resource_id);
+      CREATE INDEX IF NOT EXISTS idx_offline_data_synced ON offline_data(last_synced_at);
+      CREATE INDEX IF NOT EXISTS idx_offline_data_status ON offline_data(sync_status);
+    `);
         await client.query('COMMIT');
         console.log('✅ PostgreSQL Schema Initialized');
     }
@@ -733,4 +920,3 @@ async function initializePostgresSchema() {
         client.release();
     }
 }
-exports.initializePostgresSchema = initializePostgresSchema;

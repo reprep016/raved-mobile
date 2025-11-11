@@ -24,7 +24,7 @@ class RateLimiterService {
                 storeClient: this.redis,
                 keyPrefix: `rate_limit:${tier.name}`,
                 points: tier.maxRequests,
-                duration: Math.floor(tier.windowMs / 1000),
+                duration: Math.floor(tier.windowMs / 1000), // Convert to seconds
                 blockDuration: tier.blockDuration ? Math.floor(tier.blockDuration / 1000) : undefined,
             });
             this.limiters.set(tier.name, limiter);

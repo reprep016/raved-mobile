@@ -51,10 +51,10 @@ exports.io = io;
     app.use((0, cors_1.default)({
         origin: config_1.CONFIG.NODE_ENV === 'production'
             ? [process.env.CLIENT_URL || '', 'https://raved.app', 'https://www.raved.app']
-            : ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', '*'],
+            : true, // Allow all origins in development (needed for React Native)
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Offline-Request', 'X-Device-Id']
     }));
     app.use(i18next_http_middleware_1.default.handle(i18n_1.default));
     app.use((0, compression_1.default)());
@@ -108,13 +108,6 @@ exports.io = io;
             error: err.message || 'Internal server error'
         });
     });
-    // 404 Handler
-    app.use('*', (req, res) => {
-        res.status(404).json({
-            success: false,
-            error: 'Endpoint not found'
-        });
-    });
     // Routes
     app.use(`/api/${config_1.CONFIG.API_VERSION}`, routes_1.default);
     // Socket.io connection
@@ -128,8 +121,33 @@ exports.io = io;
             console.log('user disconnected');
         });
     });
+    // 404 Handler (must be after all routes)
+    app.use('*', (req, res) => {
+        res.status(404).json({
+            success: false,
+            error: 'Endpoint not found'
+        });
+    });
     // Start server
-    httpServer.listen(config_1.CONFIG.PORT, () => {
+    const server = httpServer.listen(config_1.CONFIG.PORT, () => {
         console.log(`🚀 Server running on port ${config_1.CONFIG.PORT}`);
     });
+    // Graceful shutdown on SIGTERM (not SIGINT in dev mode)
+    const gracefulShutdown = async (signal) => {
+        console.log(`\n📋 Received ${signal}, shutting down gracefully...`);
+        // Close the server (stop accepting new connections)
+        server.close(() => {
+            console.log('✅ HTTP server closed');
+            process.exit(0);
+        });
+        // Force close after 10 seconds
+        setTimeout(() => {
+            console.error('⚠️  Forced shutdown after timeout');
+            process.exit(1);
+        }, 10000);
+    };
+    // Only handle SIGTERM in production; in dev mode, let nodemon handle restarts
+    if (config_1.CONFIG.NODE_ENV === 'production') {
+        process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    }
 })();

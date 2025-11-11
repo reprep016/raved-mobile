@@ -9,7 +9,7 @@ const StorySchema = new mongoose_1.Schema({
         enum: ['image', 'video', 'template', 'text'],
         required: true
     },
-    content: { type: String, required: true },
+    content: { type: String, required: true }, // URL or template ID
     text: String,
     thumbnail: String,
     allowReplies: { type: Boolean, default: true },

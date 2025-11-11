@@ -39,6 +39,12 @@ export const postsApi = {
     return response.data;
   },
 
+  // Get posts by faculty
+  getFacultyPosts: async (facultyId: string, page = 1, limit = 20) => {
+    const response = await api.get(`/posts/faculty/${facultyId}?page=${page}&limit=${limit}`);
+    return response.data;
+  },
+
   // Post operations
   getPost: async (postId: string) => {
     const response = await api.get(`/posts/${postId}`);
@@ -87,6 +93,18 @@ export const postsApi = {
   // Report operations
   reportPost: async (postId: string, reason: string) => {
     const response = await api.post(`/posts/${postId}/report`, { reason });
+    return response.data;
+  },
+
+  // Get post suggestions
+  getPostSuggestions: async (limit = 10) => {
+    const response = await api.get(`/posts/suggestions?limit=${limit}`);
+    return response.data;
+  },
+
+  // Get trending posts
+  getTrendingPosts: async (page = 1, limit = 20, timeWindow: '24h' | '7d' | '30d' = '24h') => {
+    const response = await api.get(`/posts/trending?page=${page}&limit=${limit}&timeWindow=${timeWindow}`);
     return response.data;
   },
 };

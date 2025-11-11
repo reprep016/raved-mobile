@@ -1,6 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.validateDataIntegrity = exports.operationRateLimit = exports.preventXSS = exports.preventSQLInjection = exports.validateFileSize = exports.validateContentType = exports.sanitizeInput = exports.handleValidationErrors = void 0;
+exports.sanitizeInput = void 0;
+exports.handleValidationErrors = handleValidationErrors;
+exports.validateContentType = validateContentType;
+exports.validateFileSize = validateFileSize;
+exports.preventSQLInjection = preventSQLInjection;
+exports.preventXSS = preventXSS;
+exports.operationRateLimit = operationRateLimit;
+exports.validateDataIntegrity = validateDataIntegrity;
 const express_validator_1 = require("express-validator");
 const express_validator_2 = require("express-validator");
 // Global validation error handler
@@ -20,7 +27,6 @@ function handleValidationErrors(req, res, next) {
     }
     next();
 }
-exports.handleValidationErrors = handleValidationErrors;
 // Input sanitization middleware
 exports.sanitizeInput = [
     // Sanitize string inputs
@@ -61,7 +67,6 @@ function validateContentType(allowedTypes) {
         next();
     };
 }
-exports.validateContentType = validateContentType;
 // File size validation middleware
 function validateFileSize(maxSize) {
     return (req, res, next) => {
@@ -85,7 +90,6 @@ function validateFileSize(maxSize) {
         next();
     };
 }
-exports.validateFileSize = validateFileSize;
 // SQL injection prevention middleware
 function preventSQLInjection(req, res, next) {
     const suspiciousPatterns = [
@@ -114,7 +118,6 @@ function preventSQLInjection(req, res, next) {
     }
     next();
 }
-exports.preventSQLInjection = preventSQLInjection;
 // XSS prevention middleware
 function preventXSS(req, res, next) {
     const xssPatterns = [
@@ -149,7 +152,6 @@ function preventXSS(req, res, next) {
     }
     next();
 }
-exports.preventXSS = preventXSS;
 // Rate limiting for specific operations
 function operationRateLimit(operations) {
     const operationCounts = {};
@@ -185,7 +187,6 @@ function operationRateLimit(operations) {
         next();
     };
 }
-exports.operationRateLimit = operationRateLimit;
 // Data integrity validation
 function validateDataIntegrity(schema) {
     return (req, res, next) => {
@@ -228,4 +229,3 @@ function validateDataIntegrity(schema) {
         next();
     };
 }
-exports.validateDataIntegrity = validateDataIntegrity;

@@ -53,7 +53,7 @@ exports.themeController = {
     },
     setUserDarkMode: async (req, res) => {
         try {
-            const { darkMode } = req.body;
+            const darkMode = Boolean(req.body.darkMode);
             const userId = req.user.id;
             if (typeof darkMode !== 'boolean') {
                 return res.status(400).json({ error: 'darkMode must be a boolean value' });

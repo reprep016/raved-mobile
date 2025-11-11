@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   Image,
   StyleSheet,
   FlatList,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -14,120 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
-import { Event } from '../../types';
-import { mockImages, mockUsers } from '../../utils/mockData';
-
-// Mock events data
-export const mockEvents: Event[] = [
-  {
-    id: 'ev1',
-    title: 'Spring Fashion Show 2024',
-    organizer: 'Fashion Society',
-    orgAvatar: mockUsers[0].avatar,
-    date: '2025-08-15',
-    time: '19:00',
-    location: 'Main Auditorium',
-    category: 'fashion',
-    audience: 'all',
-    description: 'The biggest fashion show of the year featuring student designers.',
-    image: mockImages[0],
-    attendees: 156,
-    max: 200,
-    attending: false,
-    tags: ['Fashion', 'Student Work', 'Networking'],
-    ownerId: 'u1',
-  },
-  {
-    id: 'ev2',
-    title: 'Sustainable Fashion Workshop',
-    organizer: 'Environmental Club',
-    orgAvatar: mockUsers[1].avatar,
-    date: '2025-08-10',
-    time: '14:00',
-    location: 'Science Building Room 201',
-    category: 'workshop',
-    audience: 'undergraduate',
-    description: 'Learn eco-friendly outfit practices and tips.',
-    image: mockImages[2],
-    attendees: 45,
-    max: 50,
-    attending: true,
-    tags: ['Sustainability', 'Workshop'],
-    ownerId: 'u2',
-  },
-  {
-    id: 'ev3',
-    title: 'Graduate Fashion Research Symposium',
-    organizer: 'Graduate School',
-    orgAvatar: mockUsers[2].avatar,
-    date: '2025-08-20',
-    time: '10:00',
-    location: 'Research Center',
-    category: 'networking',
-    audience: 'graduate',
-    description: 'Present and discuss latest fashion research findings.',
-    image: mockImages[1],
-    attendees: 28,
-    max: 40,
-    attending: false,
-    tags: ['Research', 'Graduate', 'Academic'],
-    ownerId: 'u3',
-  },
-  {
-    id: 'ev4',
-    title: 'Faculty Fashion Lecture Series',
-    organizer: 'Design Department',
-    orgAvatar: mockUsers[3].avatar,
-    date: '2025-08-25',
-    time: '16:00',
-    location: 'Design Studio',
-    category: 'workshop',
-    audience: 'faculty',
-    description: 'Professional development for fashion educators.',
-    image: mockImages[3],
-    attendees: 15,
-    max: 25,
-    attending: false,
-    tags: ['Professional', 'Education', 'Faculty'],
-    ownerId: 'u4',
-  },
-  {
-    id: 'ev5',
-    title: 'Alumni Fashion Network Mixer',
-    organizer: 'Alumni Association',
-    orgAvatar: mockUsers[4].avatar,
-    date: '2025-08-30',
-    time: '18:00',
-    location: 'Alumni Center',
-    category: 'networking',
-    audience: 'alumni',
-    description: 'Connect with fashion industry professionals.',
-    image: mockImages[4],
-    attendees: 67,
-    max: 80,
-    attending: false,
-    tags: ['Alumni', 'Networking', 'Industry'],
-    ownerId: 'u5',
-  },
-  {
-    id: 'ev6',
-    title: 'Public Fashion Exhibition',
-    organizer: 'Art Gallery',
-    orgAvatar: mockUsers[5].avatar,
-    date: '2025-09-05',
-    time: '12:00',
-    location: 'City Art Gallery',
-    category: 'fashion',
-    audience: 'public',
-    description: 'Open to the public - showcasing student fashion art.',
-    image: mockImages[5],
-    attendees: 234,
-    max: 300,
-    attending: true,
-    tags: ['Public', 'Exhibition', 'Art'],
-    ownerId: 'u6',
-  },
-];
+import { eventsApi, Event } from '../../services/eventsApi';
 
 const eventTypeFilters = [
   { id: 'all', label: 'All' },
@@ -156,29 +45,58 @@ export default function EventsScreen() {
   const router = useRouter();
   const [eventTypeFilter, setEventTypeFilter] = useState('all');
   const [audienceFilter, setAudienceFilter] = useState('all');
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const filteredEvents = mockEvents.filter(event => {
-    const matchesType = eventTypeFilter === 'all' || 
-      (eventTypeFilter === 'my-events' ? event.attending : event.category === eventTypeFilter);
-    const matchesAudience = audienceFilter === 'all' || event.audience === audienceFilter;
-    return matchesType && matchesAudience;
-  });
+  useEffect(() => {
+    loadEvents();
+  }, [eventTypeFilter, audienceFilter]);
 
-  const handleJoinEvent = (eventId: string) => {
-    // Toggle attending status
-    const event = mockEvents.find(e => e.id === eventId);
-    if (event) {
-      event.attending = !event.attending;
-      if (event.attending) {
-        event.attendees += 1;
-      } else {
-        event.attendees -= 1;
+  const loadEvents = async () => {
+    try {
+      setLoading(true);
+      const filters: any = {};
+      if (eventTypeFilter !== 'all' && eventTypeFilter !== 'my-events') {
+        filters.category = eventTypeFilter;
       }
+      if (audienceFilter !== 'all') {
+        filters.audience = audienceFilter;
+      }
+      if (eventTypeFilter === 'my-events') {
+        // Filter client-side for "my events"
+        const data = await eventsApi.getEvents();
+        const myEvents = data.events?.filter((e: Event) => e.attending) || [];
+        setEvents(myEvents);
+      } else {
+        const data = await eventsApi.getEvents(filters);
+        setEvents(data.events || []);
+      }
+    } catch (error) {
+      console.error('Failed to load events:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadEvents();
+    setRefreshing(false);
+  };
+
+  const handleJoinEvent = async (eventId: string) => {
+    try {
+      await eventsApi.toggleAttendance(eventId);
+      // Reload events to get updated attendance status
+      await loadEvents();
+    } catch (error) {
+      console.error('Failed to toggle attendance:', error);
     }
   };
 
   const renderEventCard = ({ item }: { item: Event }) => {
-    const isFull = item.attendees >= item.max;
+    const isFull = item.maxAttendees ? item.attendees >= item.maxAttendees : false;
     const dateParts = item.date.split('-');
     const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parseInt(dateParts[1]) - 1];
     const day = parseInt(dateParts[2]);
@@ -191,7 +109,13 @@ export default function EventsScreen() {
       >
         {/* Event Image */}
         <View style={styles.eventImageContainer}>
-          <Image source={{ uri: item.image }} style={styles.eventImage} />
+          {item.image ? (
+            <Image source={{ uri: item.image }} style={styles.eventImage} />
+          ) : (
+            <View style={[styles.eventImage, { backgroundColor: theme.colors.primary + '20', justifyContent: 'center', alignItems: 'center' }]}>
+              <Ionicons name="calendar" size={48} color={theme.colors.primary} />
+            </View>
+          )}
           
           {/* Date Badge */}
           <View style={styles.dateBadge}>
@@ -223,9 +147,9 @@ export default function EventsScreen() {
 
           {/* Organizer */}
           <View style={styles.organizerRow}>
-            <Avatar uri={item.orgAvatar} size={20} />
+            <Avatar uri={item.organizer?.avatar || ''} size={20} />
             <Text style={styles.organizerName} numberOfLines={1}>
-              {item.organizer}
+              {item.organizer?.name || 'Unknown Organizer'}
             </Text>
           </View>
 
@@ -243,20 +167,22 @@ export default function EventsScreen() {
           </Text>
 
           {/* Tags */}
-          <View style={styles.tagsRow}>
-            {item.tags.slice(0, 3).map((tag, index) => (
-              <View key={index} style={styles.tagBadge}>
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
-            ))}
-          </View>
+          {item.tags && item.tags.length > 0 && (
+            <View style={styles.tagsRow}>
+              {item.tags.slice(0, 3).map((tag, index) => (
+                <View key={index} style={styles.tagBadge}>
+                  <Text style={styles.tagText}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           {/* Footer */}
           <View style={styles.eventFooter}>
             <View style={styles.attendeeInfo}>
               <Ionicons name="people" size={14} color="#6B7280" />
               <Text style={styles.attendeeText}>
-                {item.attendees}/{item.max} attending
+                {item.attendees}{item.maxAttendees ? `/${item.maxAttendees}` : ''} attending
               </Text>
             </View>
             <TouchableOpacity
@@ -266,7 +192,7 @@ export default function EventsScreen() {
                 (isFull && !item.attending) && styles.joinButtonDisabled,
               ]}
               onPress={() => handleJoinEvent(item.id)}
-              disabled={isFull && !item.attending}
+              disabled={(isFull && !item.attending) || loading}
             >
               <Text style={[
                 styles.joinButtonText,
@@ -296,7 +222,13 @@ export default function EventsScreen() {
         />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Event Type Filters */}
         <View style={styles.filterSection}>
           <Text style={styles.filterLabel}>Event Type</Text>
@@ -353,9 +285,13 @@ export default function EventsScreen() {
 
         {/* Events List */}
         <View style={styles.eventsList}>
-          {filteredEvents.length > 0 ? (
+          {loading && events.length === 0 ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+            </View>
+          ) : events.length > 0 ? (
             <FlatList
-              data={filteredEvents}
+              data={events}
               renderItem={renderEventCard}
               keyExtractor={(item) => item.id}
               scrollEnabled={false}
@@ -597,5 +533,9 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: theme.typography.fontSize[14],
     color: '#6B7280',
+  },
+  loadingContainer: {
+    paddingVertical: theme.spacing[12],
+    alignItems: 'center',
   },
 });

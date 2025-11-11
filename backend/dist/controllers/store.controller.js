@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createStoreItem = exports.getStoreItem = exports.getStoreItems = void 0;
 const express_validator_1 = require("express-validator");
 const database_1 = require("../config/database");
-const utils_1 = require("../utils");
 const getStoreItems = async (req, res) => {
     try {
         const { category, sort, minPrice, maxPrice, page = 1, limit = 20 } = req.query;
@@ -47,30 +46,37 @@ const getStoreItems = async (req, res) => {
         sellers.rows.forEach(s => {
             sellerMap[s.id] = {
                 id: s.id,
-                username: s.username,
                 name: `${s.first_name} ${s.last_name}`,
-                avatarUrl: s.avatar_url,
-                faculty: s.faculty
+                avatar: s.avatar_url || '',
+                faculty: s.faculty,
+                rating: 4.5, // Default rating, could be calculated from reviews
+                itemsSold: 0 // TODO: calculate from sales data
             };
         });
         const items = result.rows.map(item => ({
-            id: item.id,
+            id: item.id.toString(),
             name: item.name,
             description: item.description,
             price: parseFloat(item.price),
-            originalPrice: item.original_price ? parseFloat(item.original_price) : null,
-            category: item.category,
+            originalPrice: item.original_price ? parseFloat(item.original_price) : undefined,
+            images: item.images || [],
             condition: item.condition,
             size: item.size,
+            category: item.category,
             brand: item.brand,
-            color: item.color,
-            images: item.images || [],
             seller: sellerMap[item.seller_id],
-            viewsCount: item.views_count,
-            likesCount: item.likes_count,
-            savesCount: item.saves_count,
-            createdAt: item.created_at,
-            timeAgo: (0, utils_1.getTimeAgo)(item.created_at)
+            stats: {
+                likes: item.likes_count || 0,
+                views: item.views_count || 0,
+                saves: item.saves_count || 0
+            },
+            likesCount: item.likes_count || 0,
+            viewsCount: item.views_count || 0,
+            savesCount: item.saves_count || 0,
+            paymentMethods: item.payment_methods || [],
+            meetupLocation: item.meetup_location,
+            timestamp: new Date(item.created_at).getTime(),
+            tags: [] // TODO: implement tags system
         }));
         res.json({
             success: true,
@@ -103,35 +109,36 @@ const getStoreItem = async (req, res) => {
         res.json({
             success: true,
             item: {
-                id: item.id,
+                id: item.id.toString(),
                 name: item.name,
                 description: item.description,
                 price: parseFloat(item.price),
-                originalPrice: item.original_price ? parseFloat(item.original_price) : null,
-                category: item.category,
+                originalPrice: item.original_price ? parseFloat(item.original_price) : undefined,
+                images: item.images || [],
                 condition: item.condition,
                 size: item.size,
+                category: item.category,
                 brand: item.brand,
-                color: item.color,
-                material: item.material,
-                images: item.images || [],
-                paymentMethods: item.payment_methods || [],
-                meetupLocation: item.meetup_location,
-                sellerPhone: item.seller_phone,
                 seller: {
                     id: seller.rows[0].id,
-                    username: seller.rows[0].username,
                     name: `${seller.rows[0].first_name} ${seller.rows[0].last_name}`,
-                    avatarUrl: seller.rows[0].avatar_url,
-                    faculty: seller.rows[0].faculty
+                    avatar: seller.rows[0].avatar_url || '',
+                    faculty: seller.rows[0].faculty,
+                    rating: 4.5,
+                    itemsSold: item.sales_count || 0
                 },
+                stats: {
+                    likes: item.likes_count || 0,
+                    views: item.views_count + 1,
+                    saves: item.saves_count || 0
+                },
+                likesCount: item.likes_count || 0,
                 viewsCount: item.views_count + 1,
-                likesCount: item.likes_count,
-                savesCount: item.saves_count,
-                salesCount: item.sales_count,
-                status: item.status,
-                createdAt: item.created_at,
-                timeAgo: (0, utils_1.getTimeAgo)(item.created_at)
+                savesCount: item.saves_count || 0,
+                paymentMethods: item.payment_methods || [],
+                meetupLocation: item.meetup_location,
+                timestamp: new Date(item.created_at).getTime(),
+                tags: [] // TODO: implement tags system
             }
         });
     }

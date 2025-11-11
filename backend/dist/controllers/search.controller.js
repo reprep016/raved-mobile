@@ -9,7 +9,13 @@ exports.searchController = {
             if (!q || q.trim().length < 2) {
                 return res.status(400).json({ error: 'Query too short' });
             }
-            const results = await search_service_1.searchService.advancedSearch(q, type, category, faculty, minPrice ? parseFloat(minPrice) : undefined, maxPrice ? parseFloat(maxPrice) : undefined, condition, sortBy, parseInt(page), parseInt(limit));
+            const results = await search_service_1.searchService.advancedSearch(q, type, {
+                category: category,
+                faculty: faculty,
+                minPrice: minPrice ? Number.parseFloat(minPrice) : undefined,
+                maxPrice: maxPrice ? Number.parseFloat(maxPrice) : undefined,
+                condition: condition,
+            }, sortBy, Number.parseInt(page), Number.parseInt(limit));
             res.json({
                 success: true,
                 ...results

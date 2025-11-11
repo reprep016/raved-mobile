@@ -10,7 +10,7 @@ const NotificationSchema = new mongoose_1.Schema({
         required: true
     },
     actorId: String,
-    referenceType: String,
+    referenceType: String, // 'post', 'comment', 'item', 'event'
     referenceId: String,
     title: String,
     message: String,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,88 +6,197 @@ import {
   TouchableOpacity,
   StyleSheet,
   FlatList,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme';
 import { PostCard } from '../../components/posts/PostCard';
-import { usePosts } from '../../hooks/usePosts';
 import { useAuth } from '../../hooks/useAuth';
 import { Post } from '../../types';
+import { facultiesApi, Faculty } from '../../services/facultiesApi';
+import { postsApi } from '../../services/postsApi';
 
-const facultyData = {
-  all: { title: 'All Faculties', members: '12.5k', posts: '8.2k', events: '156', icon: 'globe' },
-  arts: { title: 'Arts & Humanities', members: '2.4k', posts: '1.2k', events: '24', icon: 'color-palette', color: ['#A855F7', '#EC4899'] },
-  business: { title: 'Business', members: '3.1k', posts: '2.1k', events: '32', icon: 'briefcase', color: ['#3B82F6', '#06B6D4'] },
-  engineering: { title: 'Engineering', members: '2.8k', posts: '1.8k', events: '28', icon: 'construct', color: ['#F97316', '#EF4444'] },
-  science: { title: 'Science', members: '2.2k', posts: '1.5k', events: '22', icon: 'flask', color: ['#10B981', '#059669'] },
-  medicine: { title: 'Medicine', members: '2.0k', posts: '1.6k', events: '50', icon: 'medical', color: ['#EF4444', '#EC4899'] },
-  law: { title: 'Law', members: '1.8k', posts: '1.1k', events: '18', icon: 'scale', color: ['#6366F1', '#A855F7'] },
-  education: { title: 'Education', members: '1.5k', posts: '0.9k', events: '15', icon: 'school', color: ['#F59E0B', '#F97316'] },
+const facultyIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
+  'arts': 'color-palette',
+  'business': 'briefcase',
+  'engineering': 'construct',
+  'science': 'flask',
+  'medicine': 'medical',
+  'law': 'scale',
+  'education': 'school',
+  'default': 'school',
 };
 
-type FacultyKey = keyof typeof facultyData;
+const facultyColors: Record<string, string[]> = {
+  'arts': ['#A855F7', '#EC4899'],
+  'business': ['#3B82F6', '#06B6D4'],
+  'engineering': ['#F97316', '#EF4444'],
+  'science': ['#10B981', '#059669'],
+  'medicine': ['#EF4444', '#EC4899'],
+  'law': ['#6366F1', '#A855F7'],
+  'education': ['#F59E0B', '#F97316'],
+};
 
 export default function FacultiesScreen() {
-  const { posts } = usePosts();
   const { user } = useAuth();
-  const [selectedFaculty, setSelectedFaculty] = useState<FacultyKey>('all');
+  const [faculties, setFaculties] = useState<Faculty[]>([]);
+  const [selectedFaculty, setSelectedFaculty] = useState<string | null>(null);
+  const [facultyStats, setFacultyStats] = useState<{ memberCount: number; postCount: number; eventCount: number } | null>(null);
+  const [facultyPosts, setFacultyPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
 
-  const currentData = facultyData[selectedFaculty];
-  
-  // Filter posts by faculty
-  const filteredPosts = selectedFaculty === 'all'
-    ? posts
-    : posts.filter(post => 
-        post.user.faculty?.toLowerCase().includes(selectedFaculty)
-      );
+  useEffect(() => {
+    loadFaculties();
+  }, []);
 
-  const renderFacultyButton = (key: FacultyKey) => {
-    const data = facultyData[key];
-    const isSelected = selectedFaculty === key;
-    const hasColor = 'color' in data && data.color;
+  useEffect(() => {
+    if (selectedFaculty) {
+      loadFacultyData(selectedFaculty);
+    } else {
+      setFacultyStats(null);
+      setFacultyPosts([]);
+    }
+  }, [selectedFaculty]);
+
+  const loadFaculties = async () => {
+    try {
+      setLoading(true);
+      const data = await facultiesApi.getFaculties();
+      setFaculties(data);
+    } catch (error) {
+      console.error('Failed to load faculties:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadFacultyData = async (facultyId: string) => {
+    try {
+      setLoadingPosts(true);
+      const [stats, postsData] = await Promise.all([
+        facultiesApi.getFacultyStats(facultyId),
+        postsApi.getFacultyPosts(facultyId, 1, 20),
+      ]);
+      setFacultyStats(stats);
+      setFacultyPosts(postsData.posts || []);
+      setHasMore(postsData.pagination?.hasMore || false);
+      setPage(1);
+    } catch (error) {
+      console.error('Failed to load faculty data:', error);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  const loadMorePosts = async () => {
+    if (!selectedFaculty || loadingPosts || !hasMore) return;
+    
+    try {
+      setLoadingPosts(true);
+      const nextPage = page + 1;
+      const postsData = await postsApi.getFacultyPosts(selectedFaculty, nextPage, 20);
+      setFacultyPosts(prev => [...prev, ...(postsData.posts || [])]);
+      setHasMore(postsData.pagination?.hasMore || false);
+      setPage(nextPage);
+    } catch (error) {
+      console.error('Failed to load more posts:', error);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadFaculties();
+    if (selectedFaculty) {
+      await loadFacultyData(selectedFaculty);
+    }
+    setRefreshing(false);
+  };
+
+  const getFacultyIcon = (facultyName: string) => {
+    const key = facultyName.toLowerCase().split(' ')[0];
+    return facultyIcons[key] || facultyIcons.default;
+  };
+
+  const getFacultyColor = (facultyName: string) => {
+    const key = facultyName.toLowerCase().split(' ')[0];
+    return facultyColors[key] || ['#5D5CDE', '#FF6B6B'];
+  };
+
+  const currentData = selectedFaculty 
+    ? faculties.find(f => f.id === selectedFaculty)
+    : null;
+
+  const renderFacultyButton = (faculty: Faculty) => {
+    const isSelected = selectedFaculty === faculty.id;
+    const colors = getFacultyColor(faculty.name);
+    const icon = getFacultyIcon(faculty.name);
     
     return (
       <TouchableOpacity
-        key={key}
+        key={faculty.id}
         style={[
           styles.facultyButton,
-          isSelected && key === 'all' && styles.facultyButtonActive,
-          !isSelected && key !== 'all' && {
-            backgroundColor: hasColor ? `${data.color[0]}20` : '#F3F4F6',
+          isSelected && styles.facultyButtonActive,
+          !isSelected && {
+            backgroundColor: `${colors[0]}20`,
           },
         ]}
-        onPress={() => setSelectedFaculty(key)}
+        onPress={() => setSelectedFaculty(isSelected ? null : faculty.id)}
       >
         <Ionicons
-          name={data.icon as any}
+          name={icon}
           size={20}
-          color={isSelected && key === 'all' ? 'white' : hasColor ? data.color[0] : '#6B7280'}
+          color={isSelected ? 'white' : colors[0]}
         />
         <Text
           style={[
             styles.facultyButtonTitle,
-            isSelected && key === 'all' && styles.facultyButtonTitleActive,
-            !isSelected && key !== 'all' && hasColor && { color: data.color[0] },
+            isSelected && styles.facultyButtonTitleActive,
+            !isSelected && { color: colors[0] },
           ]}
+          numberOfLines={2}
         >
-          {data.title}
+          {faculty.name}
         </Text>
         <Text
           style={[
             styles.facultyButtonMembers,
-            isSelected && key === 'all' && styles.facultyButtonMembersActive,
+            isSelected && styles.facultyButtonMembersActive,
           ]}
         >
-          {data.members} members
+          {faculty.memberCount.toLocaleString()} members
         </Text>
       </TouchableOpacity>
     );
   };
 
+  if (loading && faculties.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Faculty Selection */}
         <View style={styles.facultySelection}>
           <View style={styles.sectionHeader}>
@@ -95,58 +204,82 @@ export default function FacultiesScreen() {
             <Text style={styles.sectionTitle}>Campus Communities</Text>
           </View>
           <View style={styles.facultyGrid}>
-            {(Object.keys(facultyData) as FacultyKey[]).map(renderFacultyButton)}
+            {faculties.map(renderFacultyButton)}
           </View>
         </View>
 
         {/* Faculty Stats */}
-        <View style={styles.statsCard}>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{currentData.members}</Text>
-              <Text style={styles.statLabel}>Members</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{currentData.posts}</Text>
-              <Text style={styles.statLabel}>Posts</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{currentData.events}</Text>
-              <Text style={styles.statLabel}>Events</Text>
+        {selectedFaculty && facultyStats && currentData && (
+          <View style={styles.statsCard}>
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{facultyStats.memberCount.toLocaleString()}</Text>
+                <Text style={styles.statLabel}>Members</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{facultyStats.postCount.toLocaleString()}</Text>
+                <Text style={styles.statLabel}>Posts</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{facultyStats.eventCount.toLocaleString()}</Text>
+                <Text style={styles.statLabel}>Events</Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* Faculty Feed */}
-        <View style={styles.feedSection}>
-          <View style={styles.feedHeader}>
-            <Ionicons name="flame" size={18} color={theme.colors.accent} />
-            <Text style={styles.feedTitle}>
-              Trending in {currentData.title}
-            </Text>
-          </View>
-
-          {filteredPosts.length > 0 ? (
-            <FlatList
-              data={filteredPosts}
-              renderItem={({ item }) => <PostCard post={item} />}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-              ItemSeparatorComponent={() => <View style={{ height: theme.spacing[4] }} />}
-            />
-          ) : (
-            <View style={styles.emptyState}>
-              <Ionicons name="document-text-outline" size={48} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No posts yet in {currentData.title}</Text>
+        {selectedFaculty && currentData && (
+          <View style={styles.feedSection}>
+            <View style={styles.feedHeader}>
+              <Ionicons name="flame" size={18} color={theme.colors.accent} />
+              <Text style={styles.feedTitle}>
+                Trending in {currentData.name}
+              </Text>
             </View>
-          )}
 
-          {filteredPosts.length > 0 && (
-            <TouchableOpacity style={styles.loadMoreButton}>
-              <Text style={styles.loadMoreText}>Load More</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+            {loadingPosts && facultyPosts.length === 0 ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+              </View>
+            ) : facultyPosts.length > 0 ? (
+              <>
+                <FlatList
+                  data={facultyPosts}
+                  renderItem={({ item }) => <PostCard post={item} />}
+                  keyExtractor={(item) => item.id}
+                  scrollEnabled={false}
+                  ItemSeparatorComponent={() => <View style={{ height: theme.spacing[4] }} />}
+                />
+                {hasMore && (
+                  <TouchableOpacity 
+                    style={styles.loadMoreButton}
+                    onPress={loadMorePosts}
+                    disabled={loadingPosts}
+                  >
+                    {loadingPosts ? (
+                      <ActivityIndicator size="small" color={theme.colors.primary} />
+                    ) : (
+                      <Text style={styles.loadMoreText}>Load More</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </>
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons name="document-text-outline" size={48} color="#D1D5DB" />
+                <Text style={styles.emptyText}>No posts yet in {currentData.name}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {!selectedFaculty && (
+          <View style={styles.emptyState}>
+            <Ionicons name="school-outline" size={48} color="#D1D5DB" />
+            <Text style={styles.emptyText}>Select a faculty to view posts</Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -159,6 +292,12 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: theme.spacing[12],
   },
   facultySelection: {
     margin: theme.spacing[4],

@@ -92,16 +92,71 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
   }
 };
 
-export const requirePremium = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.user?.isPremium) {
+export const requirePremium = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Check if user has premium subscription
+    if (req.user?.subscription_tier === 'premium' && req.user?.subscription_status === 'active') {
+      // Check if subscription is expired
+      if (req.user?.subscription_expires_at) {
+        const expiresAt = new Date(req.user.subscription_expires_at);
+        if (expiresAt < new Date()) {
+          // Subscription expired, update user status
+          await pgPool.query(
+            'UPDATE users SET subscription_tier = $1 WHERE id = $2',
+            ['free', req.user.id]
+          );
+          return res.status(403).json({
+            success: false,
+            error: 'Premium subscription expired',
+            message: 'Your premium subscription has expired. Please renew to continue using premium features.',
+            upgradeRequired: true,
+            expired: true
+          });
+        }
+      }
+      return next();
+    }
+
+    // Check if user is on trial
+    if (req.user?.subscription_tier === 'trial' || req.user?.trial_started_at) {
+      const trialStart = new Date(req.user.trial_started_at || req.user.created_at);
+      const trialDays = 7; // 7-day trial
+      const trialEnd = new Date(trialStart.getTime() + trialDays * 24 * 60 * 60 * 1000);
+      
+      if (new Date() > trialEnd) {
+        // Trial expired
+        await pgPool.query(
+          'UPDATE users SET subscription_tier = $1 WHERE id = $2',
+          ['free', req.user.id]
+        );
+        return res.status(403).json({
+          success: false,
+          error: 'Trial period expired',
+          message: 'Your free trial has ended. Upgrade to premium to continue using this feature.',
+          upgradeRequired: true,
+          trialExpired: true
+        });
+      }
+      
+      // Still on trial, allow access
+      return next();
+    }
+
+    // Not premium and not on trial
     return res.status(403).json({
       success: false,
       error: 'Premium subscription required',
-      message: 'This feature is only available for premium members',
+      message: 'This feature is only available for premium members. Start your free trial or upgrade now.',
       upgradeRequired: true
     });
+  } catch (error) {
+    console.error('Require Premium Middleware Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Premium check failed',
+      message: 'Please try again later'
+    });
   }
-  next();
 };
 
 export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {

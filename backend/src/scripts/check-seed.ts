@@ -1,20 +1,34 @@
 import { pgPool } from '../config/database';
+import mongoose from 'mongoose';
+import { Post } from '../models/mongoose/post.model';
+import { Story } from '../models/mongoose/story.model';
 
 async function checkSeededData() {
   try {
     console.log('🔍 Checking seeded data...');
 
+    // Connect to MongoDB
+    await mongoose.connect(process.env.MONGODB_URL || 'mongodb://localhost:27017/raved', {
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 5000
+    });
+    console.log('✅ Connected to MongoDB');
+
     // Check users
     const userResult = await pgPool.query('SELECT COUNT(*) FROM users WHERE username LIKE \'mock_%\'');
     console.log(`👥 Mock users: ${userResult.rows[0].count}`);
 
-    // Check posts
-    const postResult = await pgPool.query('SELECT COUNT(*) FROM posts');
-    console.log(`📝 Posts: ${postResult.rows[0].count}`);
+    // Check admin user
+    const adminResult = await pgPool.query('SELECT COUNT(*) FROM users WHERE username = \'admin\'');
+    console.log(`👑 Admin users: ${adminResult.rows[0].count}`);
 
-    // Check stories
-    const storyResult = await pgPool.query('SELECT COUNT(*) FROM stories');
-    console.log(`📖 Stories: ${storyResult.rows[0].count}`);
+    // Check posts (MongoDB)
+    const postCount = await Post.countDocuments({ deletedAt: null });
+    console.log(`📝 Posts (MongoDB): ${postCount}`);
+
+    // Check stories (MongoDB)
+    const storyCount = await Story.countDocuments({ deletedAt: null });
+    console.log(`📖 Stories (MongoDB): ${storyCount}`);
 
     // Check store items
     const storeResult = await pgPool.query('SELECT COUNT(*) FROM store_items');
@@ -37,9 +51,13 @@ async function checkSeededData() {
     console.log(`🏆 User scores: ${scoreResult.rows[0].count}`);
 
     console.log('✅ Data check completed');
+    
+    // Disconnect from MongoDB
+    await mongoose.disconnect();
   } catch (error) {
     console.error('❌ Error checking data:', error);
   } finally {
+    await mongoose.disconnect().catch(() => {});
     process.exit(0);
   }
 }

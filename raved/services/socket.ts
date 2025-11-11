@@ -15,7 +15,13 @@ class SocketService {
     const authToken = token || await Storage.get<string>('authToken', '');
     console.log('Socket connecting with token present:', !!authToken);
 
-    const socketUrl = __DEV__ ? 'http://192.168.100.28:3000' : 'https://api.raved.com';
+    // For React Native development, use environment variable or default
+    // iOS Simulator: 'http://localhost:3000'
+    // Android Emulator: 'http://10.0.2.2:3000'
+    // Physical Device: Your computer's IP (e.g., 'http://192.168.1.100:3000')
+    const socketUrl = __DEV__ 
+      ? (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000')
+      : 'https://api.raved.com';
     console.log('Socket connecting to URL:', socketUrl);
 
     this.socket = io(socketUrl, {

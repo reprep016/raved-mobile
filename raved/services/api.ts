@@ -1,8 +1,13 @@
 import axios from 'axios';
 import { Storage } from './storage';
 
+// For React Native development:
+// - iOS Simulator: use 'http://localhost:3000'
+// - Android Emulator: use 'http://10.0.2.2:3000'
+// - Physical Device: use your computer's IP address (e.g., 'http://192.168.1.100:3000')
+// You can set EXPO_PUBLIC_API_URL environment variable to override this
 const API_BASE_URL = __DEV__
-  ? 'http://localhost:3000/api/v1' // Development URL - use localhost for backend access
+  ? (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000') + '/api/v1'
   : 'https://api.raved.com/api/v1'; // Production URL with API version
 
 const api = axios.create({

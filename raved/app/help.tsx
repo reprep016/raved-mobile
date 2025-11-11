@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  TextInput,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -15,9 +17,13 @@ import { theme } from '../theme';
 
 export default function HelpScreen() {
   const router = useRouter();
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [sending, setSending] = useState(false);
 
   const handleFAQ = () => {
-    Alert.alert('FAQ', 'Frequently Asked Questions coming soon!');
+    router.push('/faq' as any);
   };
 
   const handleUserGuide = () => {
@@ -28,8 +34,47 @@ export default function HelpScreen() {
     Alert.alert('Live Chat', 'Live chat support coming soon!');
   };
 
-  const handleEmail = () => {
-    Alert.alert('Email Support', 'Email: support@raved.app');
+  const handleEmail = async () => {
+    const email = 'support@raved.app';
+    const subject = encodeURIComponent('Raved Support Request');
+    const body = encodeURIComponent('Hello,\n\nI need help with:\n\n');
+    const url = `mailto:${email}?subject=${subject}&body=${body}`;
+    
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Email Support', `Email: ${email}\n\nPlease contact us at this address.`);
+      }
+    } catch (error) {
+      Alert.alert('Email Support', `Email: ${email}\n\nPlease contact us at this address.`);
+    }
+  };
+
+  const handleSubmitSupport = async () => {
+    if (!subject.trim() || !message.trim()) {
+      Alert.alert('Error', 'Please fill in both subject and message');
+      return;
+    }
+
+    try {
+      setSending(true);
+      const api = (await import('../services/api')).default;
+      await api.post('/support/contact', {
+        subject: subject.trim(),
+        message: message.trim(),
+      });
+      Alert.alert('Success', 'Your message has been sent. We\'ll get back to you soon!');
+      setSubject('');
+      setMessage('');
+      setShowContactForm(false);
+    } catch (error) {
+      console.error('Failed to send support message:', error);
+      Alert.alert('Error', 'Failed to send message. Please try again or email us directly.');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -105,7 +150,58 @@ export default function HelpScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.supportOption} 
+            onPress={() => setShowContactForm(!showContactForm)}
+          >
+            <View style={styles.supportOptionLeft}>
+              <Ionicons name="chatbubble-ellipses" size={20} color="#8B5CF6" />
+              <View>
+                <Text style={styles.supportOptionTitle}>Send a Message</Text>
+                <Text style={styles.supportOptionDesc}>Get help from our team</Text>
+              </View>
+            </View>
+            <Ionicons 
+              name={showContactForm ? 'chevron-up' : 'chevron-down'} 
+              size={20} 
+              color="#9CA3AF" 
+            />
+          </TouchableOpacity>
         </View>
+
+        {/* Contact Form */}
+        {showContactForm && (
+          <View style={styles.contactForm}>
+            <Text style={styles.formTitle}>Contact Support</Text>
+            <TextInput
+              style={styles.formInput}
+              placeholder="Subject"
+              placeholderTextColor="#9CA3AF"
+              value={subject}
+              onChangeText={setSubject}
+            />
+            <TextInput
+              style={[styles.formInput, styles.formTextArea]}
+              placeholder="Describe your issue or question..."
+              placeholderTextColor="#9CA3AF"
+              value={message}
+              onChangeText={setMessage}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+            />
+            <TouchableOpacity
+              style={[styles.submitButton, sending && styles.submitButtonDisabled]}
+              onPress={handleSubmitSupport}
+              disabled={sending}
+            >
+              <Text style={styles.submitButtonText}>
+                {sending ? 'Sending...' : 'Send Message'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -239,6 +335,46 @@ const styles = StyleSheet.create({
   onlineText: {
     fontSize: theme.typography.fontSize[12],
     color: '#059669',
+  },
+  contactForm: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing[4],
+    gap: theme.spacing[3],
+    marginTop: theme.spacing[2],
+  },
+  formTitle: {
+    fontSize: theme.typography.fontSize[16],
+    fontWeight: theme.typography.fontWeight.semibold,
+    color: '#374151',
+    marginBottom: theme.spacing[2],
+  },
+  formInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing[3],
+    fontSize: theme.typography.fontSize[14],
+    color: '#111827',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  formTextArea: {
+    minHeight: 120,
+    paddingTop: theme.spacing[3],
+  },
+  submitButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing[3],
+    alignItems: 'center',
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: theme.typography.fontSize[14],
+    fontWeight: theme.typography.fontWeight.semibold,
   },
 });
 

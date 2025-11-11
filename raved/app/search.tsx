@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { usePosts } from '../hooks/usePosts';
 import { mockUsers } from '../utils/mockData';
 import { Post } from '../types';
+import { searchApi, SearchResult } from '../services/searchApi';
 
 type SearchFilter = 'all' | 'users' | 'posts' | 'tags';
 
@@ -25,6 +26,8 @@ export default function SearchScreen() {
   const { posts } = usePosts();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<SearchFilter>('all');
+  const [searchResults, setSearchResults] = useState<SearchResult | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const searchFilters: { id: SearchFilter; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -33,50 +36,82 @@ export default function SearchScreen() {
     { id: 'tags', label: 'Tags' },
   ];
 
-  const filteredResults = useMemo(() => {
-    if (!searchQuery.trim()) return { users: [], posts: [], tags: [] };
+  // Perform search when query changes
+  useEffect(() => {
+    const performSearch = async () => {
+      if (!searchQuery.trim() || searchQuery.length < 2) {
+        setSearchResults(null);
+        return;
+      }
 
-    const query = searchQuery.toLowerCase();
-    
-    const userResults = mockUsers.filter(user =>
-      user.name.toLowerCase().includes(query) ||
-      user.faculty.toLowerCase().includes(query)
-    );
+      try {
+        setLoading(true);
+        const typeMap: Record<SearchFilter, 'all' | 'users' | 'posts' | 'tags' | 'items' | 'events'> = {
+          all: 'all',
+          users: 'users',
+          posts: 'posts',
+          tags: 'tags',
+        };
+        
+        const response = await searchApi.advancedSearch(
+          searchQuery,
+          typeMap[activeFilter] || 'all',
+          undefined,
+          'relevance',
+          1,
+          20
+        );
+        
+        setSearchResults(response.results);
+      } catch (error) {
+        console.error('Search error:', error);
+        // Fallback to local search on error
+        const query = searchQuery.toLowerCase();
+        const userResults = mockUsers.filter(user =>
+          user.name.toLowerCase().includes(query) ||
+          user.faculty.toLowerCase().includes(query)
+        );
+        const postResults = posts.filter(post =>
+          post.caption.toLowerCase().includes(query) ||
+          post.user.name.toLowerCase().includes(query)
+        );
+        const tagResults = Array.from(
+          new Set(
+            posts
+              .flatMap(post => post.tags || [])
+              .filter(tag => tag.toLowerCase().includes(query))
+          )
+        );
+        setSearchResults({ users: userResults, posts: postResults, tags: tagResults });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    const postResults = posts.filter(post =>
-      post.caption.toLowerCase().includes(query) ||
-      post.user.name.toLowerCase().includes(query)
-    );
-
-    const tagResults = Array.from(
-      new Set(
-        posts
-          .flatMap(post => post.tags || [])
-          .filter(tag => tag.toLowerCase().includes(query))
-      )
-    );
-
-    return { users: userResults, posts: postResults, tags: tagResults };
-  }, [searchQuery, posts]);
+    const debounceTimer = setTimeout(performSearch, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery, activeFilter, posts]);
 
   const getDisplayResults = () => {
+    if (!searchResults) return { users: [], posts: [], tags: [] };
+    
     switch (activeFilter) {
       case 'users':
-        return filteredResults.users;
+        return searchResults.users || [];
       case 'posts':
-        return filteredResults.posts;
+        return searchResults.posts || [];
       case 'tags':
-        return filteredResults.tags;
+        return searchResults.tags || [];
       default:
         return {
-          users: filteredResults.users.slice(0, 3),
-          posts: filteredResults.posts.slice(0, 3),
-          tags: filteredResults.tags.slice(0, 3),
+          users: (searchResults.users || []).slice(0, 3),
+          posts: (searchResults.posts || []).slice(0, 3),
+          tags: (searchResults.tags || []).slice(0, 3),
         };
     }
   };
 
-  const renderUserResult = (user: typeof mockUsers[0]) => (
+  const renderUserResult = (user: { id: string; name: string; avatar?: string; faculty?: string; username?: string }) => (
     <TouchableOpacity
       key={user.id}
       style={styles.resultCard}
@@ -146,7 +181,7 @@ export default function SearchScreen() {
 
   const results = getDisplayResults();
   const hasResults = activeFilter === 'all'
-    ? (results as any).users?.length > 0 || (results as any).posts?.length > 0 || (results as any).tags?.length > 0
+    ? ((results as any).users?.length > 0 || (results as any).posts?.length > 0 || (results as any).tags?.length > 0)
     : (Array.isArray(results) && results.length > 0);
 
   return (
@@ -205,7 +240,11 @@ export default function SearchScreen() {
 
       {/* Results */}
       <ScrollView style={styles.results} showsVerticalScrollIndicator={false}>
-        {!hasResults && searchQuery.trim() ? (
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Searching...</Text>
+          </View>
+        ) : !hasResults && searchQuery.trim() ? (
           <EmptyState
             icon="search-outline"
             title="No results found"
@@ -237,11 +276,11 @@ export default function SearchScreen() {
             )}
           </>
         ) : activeFilter === 'users' ? (
-          (results as typeof mockUsers).map(renderUserResult)
+          Array.isArray(results) ? results.map(renderUserResult) : null
         ) : activeFilter === 'posts' ? (
-          (results as Post[]).map(renderPostResult)
+          Array.isArray(results) ? results.map(renderPostResult) : null
         ) : (
-          (results as string[]).map(renderTagResult)
+          Array.isArray(results) ? results.map(renderTagResult) : null
         )}
       </ScrollView>
     </SafeAreaView>
@@ -376,6 +415,14 @@ const styles = StyleSheet.create({
     gap: theme.spacing[3],
   },
   emptyText: {
+    fontSize: theme.typography.fontSize[14],
+    color: '#6B7280',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing[12],
+  },
+  loadingText: {
     fontSize: theme.typography.fontSize[14],
     color: '#6B7280',
   },

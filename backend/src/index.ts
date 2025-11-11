@@ -52,10 +52,10 @@ export { io };
   app.use(cors({
     origin: CONFIG.NODE_ENV === 'production'
       ? [process.env.CLIENT_URL || '', 'https://raved.app', 'https://www.raved.app']
-      : ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', '*'],
+      : true, // Allow all origins in development (needed for React Native)
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Offline-Request', 'X-Device-Id']
   }));
   app.use(middleware.handle(i18next));
   app.use(compression());

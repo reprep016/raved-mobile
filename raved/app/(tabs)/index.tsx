@@ -37,6 +37,10 @@ export default function HomeScreen() {
   const [moreSheetVisible, setMoreSheetVisible] = useState(false);
   const [rankings, setRankings] = useState([]);
   const [loadingRankings, setLoadingRankings] = useState(false);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [trendingPosts, setTrendingPosts] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [showTrending, setShowTrending] = useState(false);
 
   useEffect(() => {
     setDisplayedPosts(posts.slice(0, 5));
@@ -46,7 +50,29 @@ export default function HomeScreen() {
     if (isPremium) {
       fetchRankings();
     }
+    fetchSuggestions();
+    fetchTrending();
   }, [isPremium]);
+
+  const fetchSuggestions = async () => {
+    try {
+      const postsApi = (await import('../../services/postsApi')).default;
+      const response = await postsApi.getPostSuggestions(5);
+      setSuggestions(response.suggestions || []);
+    } catch (error) {
+      console.error('Failed to fetch suggestions:', error);
+    }
+  };
+
+  const fetchTrending = async () => {
+    try {
+      const postsApi = (await import('../../services/postsApi')).default;
+      const response = await postsApi.getTrendingPosts(1, 5, '24h');
+      setTrendingPosts(response.posts || []);
+    } catch (error) {
+      console.error('Failed to fetch trending:', error);
+    }
+  };
 
   const fetchRankings = async () => {
     try {
@@ -299,6 +325,89 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {/* Post Suggestions */}
+        {suggestions.length > 0 && showSuggestions && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <Ionicons name="sparkles" size={20} color="#8B5CF6" />
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Suggested for You
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowSuggestions(false)}>
+                <Ionicons name="close" size={18} color={colors.gray500 || '#6B7280'} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+              {suggestions.map((suggestion: any) => (
+                <TouchableOpacity
+                  key={suggestion.id}
+                  style={[styles.suggestionCard, { backgroundColor: colors.card }]}
+                  onPress={() => router.push(`/post/${suggestion.id}` as any)}
+                >
+                  <Image
+                    source={{ uri: suggestion.media?.url || suggestion.media?.thumbnail || '' }}
+                    style={styles.suggestionImage}
+                  />
+                  <View style={styles.suggestionInfo}>
+                    <Text style={[styles.suggestionUser, { color: colors.text }]} numberOfLines={1}>
+                      {suggestion.user?.name || 'User'}
+                    </Text>
+                    <View style={styles.suggestionStats}>
+                      <Ionicons name="heart" size={12} color="#EF4444" />
+                      <Text style={[styles.suggestionStatText, { color: colors.gray500 || '#6B7280' }]}>
+                        {suggestion.likesCount || 0}
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Trending Posts */}
+        {trendingPosts.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <Ionicons name="flame" size={20} color="#F59E0B" />
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Trending Now
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowTrending(!showTrending)}>
+                <Ionicons 
+                  name={showTrending ? "chevron-up" : "chevron-down"} 
+                  size={18} 
+                  color={colors.gray500 || '#6B7280'} 
+                />
+              </TouchableOpacity>
+            </View>
+            {showTrending && (
+              <View style={styles.trendingContainer}>
+                {trendingPosts.slice(0, 3).map((post: any) => (
+                  <PostCard key={post.id} post={post} />
+                ))}
+                {trendingPosts.length > 3 && (
+                  <TouchableOpacity
+                    style={[styles.viewMoreButton, { backgroundColor: colors.card }]}
+                    onPress={() => {
+                      // Navigate to trending view
+                      router.push('/trending' as any);
+                    }}
+                  >
+                    <Text style={[styles.viewMoreText, { color: currentColors.primary }]}>
+                      View More Trending →
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Feed */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 16 }]}>
@@ -372,8 +481,15 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: theme.spacing[2],
     marginBottom: theme.spacing[3],
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[2],
+    flex: 1,
   },
   sectionTitle: {
     fontSize: theme.typography.fontSize[16],
@@ -477,6 +593,54 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing[4],
   },
   loadMoreText: {
+    fontSize: theme.typography.fontSize[14],
+    fontWeight: theme.typography.fontWeight.semibold,
+  },
+  horizontalScroll: {
+    marginHorizontal: -theme.spacing[4],
+    paddingHorizontal: theme.spacing[4],
+  },
+  suggestionCard: {
+    width: 120,
+    marginRight: theme.spacing[3],
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  suggestionImage: {
+    width: '100%',
+    height: 150,
+    backgroundColor: '#F3F4F6',
+  },
+  suggestionInfo: {
+    padding: theme.spacing[2],
+  },
+  suggestionUser: {
+    fontSize: theme.typography.fontSize[12],
+    fontWeight: theme.typography.fontWeight.medium,
+    marginBottom: theme.spacing[1],
+  },
+  suggestionStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing[1],
+  },
+  suggestionStatText: {
+    fontSize: theme.typography.fontSize[11],
+  },
+  trendingContainer: {
+    gap: theme.spacing[3],
+  },
+  viewMoreButton: {
+    paddingVertical: theme.spacing[3],
+    borderRadius: theme.borderRadius.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginTop: theme.spacing[2],
+  },
+  viewMoreText: {
     fontSize: theme.typography.fontSize[14],
     fontWeight: theme.typography.fontWeight.semibold,
   },

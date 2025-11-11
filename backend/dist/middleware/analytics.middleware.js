@@ -1,6 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.conversionTracker = exports.interactionTracker = exports.eventTracker = exports.pageViewTracker = exports.sessionTracker = void 0;
+exports.sessionTracker = sessionTracker;
+exports.pageViewTracker = pageViewTracker;
+exports.eventTracker = eventTracker;
+exports.interactionTracker = interactionTracker;
+exports.conversionTracker = conversionTracker;
 const uuid_1 = require("uuid");
 const database_1 = require("../config/database");
 const logging_middleware_1 = require("./logging.middleware");
@@ -12,7 +16,7 @@ function sessionTracker(req, res, next) {
         sessionId = (0, uuid_1.v4)();
         // Set session cookie (expires in 30 days)
         res.cookie('session_id', sessionId, {
-            maxAge: 30 * 24 * 60 * 60 * 1000,
+            maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax'
@@ -28,7 +32,6 @@ function sessionTracker(req, res, next) {
     };
     next();
 }
-exports.sessionTracker = sessionTracker;
 // Track page views and user interactions
 function pageViewTracker(req, res, next) {
     const startTime = Date.now();
@@ -105,7 +108,6 @@ function pageViewTracker(req, res, next) {
     });
     next();
 }
-exports.pageViewTracker = pageViewTracker;
 // Track custom events
 function eventTracker(req, res, next) {
     // Add event tracking method to response
@@ -147,7 +149,6 @@ function eventTracker(req, res, next) {
     };
     next();
 }
-exports.eventTracker = eventTracker;
 // Track user interactions (clicks, scrolls, etc.)
 function interactionTracker(req, res, next) {
     // This would typically be used with client-side tracking
@@ -188,7 +189,6 @@ function interactionTracker(req, res, next) {
     });
     next();
 }
-exports.interactionTracker = interactionTracker;
 // Track conversions and goals
 function conversionTracker(req, res, next) {
     // This middleware can be used to track specific conversion events
@@ -227,7 +227,6 @@ function conversionTracker(req, res, next) {
     };
     next();
 }
-exports.conversionTracker = conversionTracker;
 // Helper function to parse user agent
 function parseUserAgent(userAgent) {
     const ua = userAgent.toLowerCase();

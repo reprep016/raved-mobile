@@ -86,7 +86,7 @@ function isCriticalOperation(req) {
  */
 function setRateLimitHeaders(res, result) {
     const headers = {
-        'X-RateLimit-Limit': '100',
+        'X-RateLimit-Limit': '100', // Default, will be overridden by specific limits
         'X-RateLimit-Remaining': result.remaining.toString(),
         'X-RateLimit-Reset': Math.floor(result.resetTime.getTime() / 1000).toString(),
     };

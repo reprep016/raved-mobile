@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -43,10 +44,32 @@ export default function LanguageSettingsScreen() {
   const [dateFormat, setDateFormat] = useState(user?.dateFormat || 'DD/MM/YYYY');
   const [currency, setCurrency] = useState(user?.currency || 'GHS');
 
+  const savePreferences = async () => {
+    try {
+      const api = (await import('../services/api')).default;
+      await api.put('/auth/language-preferences', {
+        language,
+        dateFormat,
+        currency,
+      });
+      Alert.alert('Success', 'Preferences saved successfully');
+    } catch (error) {
+      console.error('Failed to save preferences:', error);
+      Alert.alert('Error', 'Failed to save preferences');
+    }
+  };
+
   const handleLanguageChange = async (lang: string) => {
     setLanguage(lang as any);
     await i18n.changeLanguage(lang);
-    // TODO: Update user language preference in backend
+    
+    // Update user language preference in backend
+    try {
+      const api = (await import('../services/api')).default;
+      await api.put('/auth/language-preferences', { language: lang });
+    } catch (error) {
+      console.error('Failed to sync language preference:', error);
+    }
   };
 
   const SettingSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -110,7 +133,10 @@ export default function LanguageSettingsScreen() {
                     styles.selectOption,
                     dateFormat === format.value && styles.selectOptionActive,
                   ]}
-                  onPress={() => setDateFormat(format.value as any)}
+                  onPress={() => {
+                    setDateFormat(format.value as any);
+                    savePreferences();
+                  }}
                 >
                   <Text
                     style={[
@@ -135,7 +161,10 @@ export default function LanguageSettingsScreen() {
                     styles.selectOption,
                     currency === curr.value && styles.selectOptionActive,
                   ]}
-                  onPress={() => setCurrency(curr.value as any)}
+                  onPress={() => {
+                    setCurrency(curr.value as any);
+                    savePreferences();
+                  }}
                 >
                   <Text
                     style={[

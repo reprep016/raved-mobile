@@ -5,7 +5,7 @@ import {
   getStoreItem,
   createStoreItem,
 } from '../controllers/store.controller';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate, requirePremium } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -13,7 +13,8 @@ router.get('/items', authenticate, getStoreItems);
 
 router.get('/items/:itemId', authenticate, getStoreItem);
 
-router.post('/items', authenticate, [
+// Creating store items requires premium
+router.post('/items', authenticate, requirePremium, [
     body('name').trim().notEmpty().isLength({ max: 255 }),
     body('price').isFloat({ min: 0.01 }),
     body('category').isIn(['clothing', 'shoes', 'accessories', 'bags', 'jewelry']),

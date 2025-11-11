@@ -204,7 +204,7 @@ class DataVersioningService {
             id: (0, uuid_1.v4)(),
             entityType: entity.entityType,
             entityId: entity.entityId,
-            version: 1,
+            version: 1, // Will be updated based on existing versions
             userId: entity.userId,
             operation: entity.operation,
             data: entity.data,

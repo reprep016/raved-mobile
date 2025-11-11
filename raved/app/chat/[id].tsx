@@ -8,6 +8,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -112,17 +113,55 @@ export default function ChatDetailScreen() {
   const handleSend = async () => {
     if (!message.trim() || !id || sending) return;
 
+    const messageText = message.trim();
+    setMessage('');
     setSending(true);
-    try {
-      const response = await api.post(`/chats/${id}/messages`, {
-        content: message.trim(),
-        type: 'text'
-      });
 
-      // Message will be received via socket, no need to add manually
-      setMessage('');
+    try {
+      // Use offline queue service for offline support
+      const { offlineQueueService } = await import('../../services/offlineQueue');
+      
+      // Add optimistic message
+      const tempMessage: Message = {
+        id: `temp_${Date.now()}`,
+        conversationId: id,
+        sender: {
+          id: user?.id || '',
+          name: user?.name || 'You',
+          avatar: user?.avatar || '',
+        },
+        content: messageText,
+        type: 'text',
+        isRead: false,
+        createdAt: new Date().toISOString(),
+        timeAgo: 'now',
+      };
+      setMessages(prev => [...prev, tempMessage]);
+
+      // Queue the message (will sync when online)
+      await offlineQueueService.queueRequest(
+        'POST',
+        `/chats/${id}/messages`,
+        {
+          content: messageText,
+          type: 'text'
+        },
+        {
+          priority: 10, // High priority for messages
+          tags: ['message', 'chat']
+        }
+      );
+
+      // If online, process immediately
+      if (offlineQueueService.isOnline) {
+        await offlineQueueService.processQueue();
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(m => !m.id.startsWith('temp_')));
+      setMessage(messageText); // Restore message text
+      Alert.alert('Error', 'Failed to send message. It will be sent when you\'re back online.');
     } finally {
       setSending(false);
     }
